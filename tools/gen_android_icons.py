@@ -95,31 +95,51 @@ def crop_transparent(img: Image.Image) -> Image.Image:
     return img.crop(bbox)
 
 
-def render_foreground(master: Image.Image, px: int, safe_px: int) -> Image.Image:
+def render_foreground(
+    master: Image.Image, px: int, inset_factor: float
+) -> Image.Image:
     """Render the 108dp adaptive-icon foreground canvas at ``px`` pixels.
 
     The master is a fully-rendered icon (opaque #0B1013 bg + grid + wordmark
-    baked in). Resize it straight to fill the full canvas — no letterbox,
-    no safe-area inset. Launcher masks (circle/squircle) will crop the
-    outer corners at draw time; the wordmark lives in the central ~60% of
-    the source so it stays visible under every mask shape.
+    baked in). Scale it to ``inset_factor * px`` centered on a transparent
+    canvas so the wordmark gets breathing room from the visible edge on
+    square-masked launchers. The transparent margin falls back to the
+    adaptive-icon background layer (#0B1013) — same color as the source bg,
+    so the seam is invisible.
 
-    The ``safe_px`` argument is kept for signature stability but unused.
+    inset_factor = 1.0 → full bleed, wordmark kisses the edge.
+    inset_factor = 0.88 → ~6% margin each side, comfortable breathing room.
+    inset_factor = 0.61 → scales to 66dp safe area (wordmark-only launchers).
     """
-    del safe_px  # intentionally unused — source already composed inside safe zone
+    canvas = Image.new("RGBA", (px, px), (0, 0, 0, 0))
     rgba = master.convert("RGBA")
-    return rgba.resize((px, px), Image.Resampling.LANCZOS)
+    inner = max(1, int(round(px * inset_factor)))
+    scaled = rgba.resize((inner, inner), Image.Resampling.LANCZOS)
+    off = (px - inner) // 2
+    canvas.paste(scaled, (off, off), scaled)
+    return canvas
 
 
-def render_legacy(master: Image.Image, px: int, bg: Tuple[int, int, int, int]) -> Image.Image:
-    """Straight resize for mipmap-*/ic_launcher.png (pre-API 26 fallback).
+def render_legacy(
+    master: Image.Image,
+    px: int,
+    bg: Tuple[int, int, int, int],
+    inset_factor: float,
+) -> Image.Image:
+    """Legacy mipmap (pre-API 26): composite background + inset foreground.
 
-    Source is already fully composed; no background compositing needed.
-    ``bg`` is kept for signature stability but unused (source is opaque).
+    Pre-API-26 launchers DON'T apply the adaptive-icon background; the PNG
+    must be fully opaque. Fill with ``bg`` then paste the inset-scaled source.
+    Result: ``bg`` fills the breathing-room margin (matches the source's
+    own bg color so the composition looks seamless).
     """
-    del bg  # intentionally unused — source is opaque
+    canvas = Image.new("RGBA", (px, px), bg)
     rgba = master.convert("RGBA")
-    return rgba.resize((px, px), Image.Resampling.LANCZOS)
+    inner = max(1, int(round(px * inset_factor)))
+    scaled = rgba.resize((inner, inner), Image.Resampling.LANCZOS)
+    off = (px - inner) // 2
+    canvas.paste(scaled, (off, off), scaled)
+    return canvas
 
 
 def main() -> int:
@@ -139,6 +159,14 @@ def main() -> int:
         "--bg-color",
         default="#0B1013",
         help="Background color (hex). Default: brand t.ink.",
+    )
+    ap.add_argument(
+        "--inset",
+        type=float,
+        default=0.88,
+        help="Scale factor applied to the source before compositing. "
+        "1.0 = full bleed; 0.88 = ~6%% margin each side (default, "
+        "comfortable breathing room).",
     )
     args = ap.parse_args()
 
@@ -172,10 +200,9 @@ def main() -> int:
     # 3. drawable-*dpi/ic_launcher_foreground.png per density (108dp).
     for dpi, scale in DENSITIES.items():
         px = int(round(CANVAS_DP * scale))
-        safe_px = int(round(SAFE_DP * scale))
         out_dir = res_root / f"drawable-{dpi}"
         out_dir.mkdir(parents=True, exist_ok=True)
-        fg = render_foreground(master, px, safe_px)
+        fg = render_foreground(master, px, args.inset)
         out_path = out_dir / "ic_launcher_foreground.png"
         fg.save(out_path, format="PNG", optimize=True)
         emitted.append(f"{dpi}/{px}px (fg)")
@@ -185,7 +212,7 @@ def main() -> int:
         px = int(round(LEGACY_DP * scale))
         out_dir = res_root / f"mipmap-{dpi}"
         out_dir.mkdir(parents=True, exist_ok=True)
-        legacy = render_legacy(master, px, bg_rgba)
+        legacy = render_legacy(master, px, bg_rgba, args.inset)
         legacy.save(out_dir / "ic_launcher.png", format="PNG", optimize=True)
         # roundIcon lands on the same artwork; the launcher crops it with
         # a round mask at draw time.

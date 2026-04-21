@@ -29,6 +29,7 @@ flutter:
   assets:
     - assets/test_samples/djimimo_sample.jpg
     - assets/fonts/JetBrainsMono-Regular.woff2      # bundled Mono font per brand §4
+    - assets/branding/app-icon.png                  # Editorial Glitch logo for in-app AppMark
   fonts:
     - family: JetBrainsMono
       fonts:
