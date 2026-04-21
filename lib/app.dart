@@ -13,6 +13,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'core/app_lifecycle.dart';
 import 'core/theme.dart';
@@ -20,6 +21,7 @@ import 'features/gallery/gallery_page.dart';
 import 'features/home/home_page.dart';
 import 'features/result/result_page.dart';
 import 'features/settings/settings_page.dart';
+import 'features/splash/splash_page.dart';
 import 'features/tasks/task_list_page.dart';
 import 'features/test_mode/test_mode_page.dart';
 import 'services/notification_service.dart';
@@ -89,20 +91,41 @@ class _LivebackAppState extends State<LivebackApp>
       initialRoute: '/',
       onGenerateRoute: _onGenerateRoute,
       builder: (ctx, child) {
-        if (_bootstrapError != null) {
-          return _BootstrapErrorBanner(
-            message: _bootstrapError!,
-            child: child ?? const SizedBox.shrink(),
-          );
-        }
-        return child ?? const SizedBox.shrink();
+        // Status / nav bar chrome follows the app's scaffold background so
+        // the top edge reads as one continuous surface. Icon brightness is
+        // inverted against the bg; navigation bar uses the same bg with
+        // matching divider so it disappears on gesture-nav devices.
+        final theme = Theme.of(ctx);
+        final bg = theme.scaffoldBackgroundColor;
+        final iconBrightness = theme.brightness == Brightness.dark
+            ? Brightness.light
+            : Brightness.dark;
+        final overlay = SystemUiOverlayStyle(
+          statusBarColor: bg,
+          statusBarIconBrightness: iconBrightness,
+          statusBarBrightness: theme.brightness,
+          systemNavigationBarColor: bg,
+          systemNavigationBarIconBrightness: iconBrightness,
+          systemNavigationBarDividerColor: bg,
+        );
+        final Widget body = _bootstrapError != null
+            ? _BootstrapErrorBanner(
+                message: _bootstrapError!,
+                child: child ?? const SizedBox.shrink(),
+              )
+            : (child ?? const SizedBox.shrink());
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: overlay,
+          child: body,
+        );
       },
     );
   }
 
   Route<Object?>? _onGenerateRoute(RouteSettings settings) {
     final widget = switch (settings.name) {
-      '/' => const HomePage(),
+      '/' => const SplashPage(),
+      '/home' => const HomePage(),
       '/gallery' => const GalleryPage(),
       '/tasks' => const TaskListPage(),
       '/settings' => const SettingsPage(),

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Splash screen background. Locked to brand §3 t.ink deep slate across
+         both light and dark system modes — the Flutter SplashPage is an
+         always-dark glitch-repair animation, so matching the system splash
+         to #0B1013 avoids a light/dark handoff flash. Home itself still
+         respects system theme; the transition from dark splash → themed
+         home happens within the Flutter fade-slide exit. -->
+    <color name="splash_background">#0B1013</color>
+</resources>

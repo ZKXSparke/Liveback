@@ -13,12 +13,14 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../models/gallery_item.dart';
 import '../../services/mediastore_channel.dart';
 import '../../services/task_queue.dart';
 import '../../widgets/mono_text.dart';
 import '../../widgets/theme_access.dart';
+import '../../widgets/thumbnail_cache.dart';
 
 const int _kMaxSelection = 100;
 const int _kPageSize = 120;
@@ -40,6 +42,13 @@ class _GalleryPageState extends State<GalleryPage> {
   bool _reachedEnd = false;
   String? _loadError;
 
+  // Permission state. `_permissionResolved` flips true once we've attempted
+  // the request at least once; until then the UI shows a neutral loading
+  // state rather than a "denied" / "empty" prompt (avoids a false flash).
+  bool _permissionResolved = false;
+  bool _permissionGranted = false;
+  bool _permissionPermanentlyDenied = false;
+
   // Gesture state machine (§11).
   final GlobalKey _gridKey = GlobalKey();
   _GestureMode _mode = _GestureMode.idle;
@@ -52,8 +61,29 @@ class _GalleryPageState extends State<GalleryPage> {
   @override
   void initState() {
     super.initState();
-    _loadMore();
     _scroll.addListener(_onScroll);
+    unawaited(_requestPermissionAndLoad());
+  }
+
+  Future<void> _requestPermissionAndLoad({bool fromUserTap = false}) async {
+    // `Permission.photos` is permission_handler's unified key: on Android 13+
+    // it maps to READ_MEDIA_IMAGES; on API ≤32 it falls through to the
+    // storage permission. On the first tap we use .request() which also
+    // shows the system prompt if status is .denied.
+    PermissionStatus status = await Permission.photos.status;
+    if (status.isDenied || (fromUserTap && !status.isGranted)) {
+      status = await Permission.photos.request();
+    }
+    if (!mounted) return;
+    final granted = status.isGranted || status.isLimited;
+    setState(() {
+      _permissionResolved = true;
+      _permissionGranted = granted;
+      _permissionPermanentlyDenied = status.isPermanentlyDenied;
+    });
+    if (granted) {
+      unawaited(_loadMore());
+    }
   }
 
   @override
@@ -240,9 +270,6 @@ class _GalleryPageState extends State<GalleryPage> {
   Widget build(BuildContext context) {
     final c = context.colors;
     final n = _selected.length;
-    final scrollPhysics = _mode == _GestureMode.dragSelect
-        ? const NeverScrollableScrollPhysics()
-        : const AlwaysScrollableScrollPhysics();
 
     return Scaffold(
       backgroundColor: c.bg,
@@ -259,42 +286,7 @@ class _GalleryPageState extends State<GalleryPage> {
                   onLongPressStart: _onLongPressStart,
                   onLongPressMoveUpdate: _onLongPressMove,
                   onLongPressEnd: _onLongPressEnd,
-                  child: _loadError != null
-                      ? _errorState()
-                      : GridView.builder(
-                          key: _gridKey,
-                          controller: _scroll,
-                          physics: scrollPhysics,
-                          padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                          gridDelegate:
-                              const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            mainAxisSpacing: 4,
-                            crossAxisSpacing: 4,
-                            childAspectRatio: 1,
-                          ),
-                          itemCount: _items.length + (_loading ? 1 : 0),
-                          itemBuilder: (ctx, i) {
-                            if (i >= _items.length) {
-                              return const Center(
-                                child: SizedBox(
-                                  width: 28,
-                                  height: 28,
-                                  child: CircularProgressIndicator(
-                                      strokeWidth: 2),
-                                ),
-                              );
-                            }
-                            final item = _items[i];
-                            final selected = _selected.contains(i);
-                            return _ThumbnailTile(
-                              key: ValueKey(item.id),
-                              item: item,
-                              selected: selected,
-                              onTap: () => _toggle(i),
-                            );
-                          },
-                        ),
+                  child: _buildContent(),
                 ),
               ),
             ),
@@ -302,6 +294,61 @@ class _GalleryPageState extends State<GalleryPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildContent() {
+    // Precedence: hard load error > unresolved / denied permission >
+    // empty gallery > grid.
+    if (_loadError != null) return _errorState();
+    if (!_permissionResolved) return const _LoadingState();
+    if (!_permissionGranted) {
+      return _PermissionState(
+        permanentlyDenied: _permissionPermanentlyDenied,
+        onGrant: () {
+          if (_permissionPermanentlyDenied) {
+            openAppSettings();
+          } else {
+            _requestPermissionAndLoad(fromUserTap: true);
+          }
+        },
+      );
+    }
+    if (_items.isEmpty && !_loading) return const _EmptyState();
+    final scrollPhysics = _mode == _GestureMode.dragSelect
+        ? const NeverScrollableScrollPhysics()
+        : const AlwaysScrollableScrollPhysics();
+    return GridView.builder(
+      key: _gridKey,
+      controller: _scroll,
+      physics: scrollPhysics,
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 3,
+        mainAxisSpacing: 4,
+        crossAxisSpacing: 4,
+        childAspectRatio: 1,
+      ),
+      itemCount: _items.length + (_loading ? 1 : 0),
+      itemBuilder: (ctx, i) {
+        if (i >= _items.length) {
+          return const Center(
+            child: SizedBox(
+              width: 28,
+              height: 28,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          );
+        }
+        final item = _items[i];
+        final selected = _selected.contains(i);
+        return _ThumbnailTile(
+          key: ValueKey(item.id),
+          item: item,
+          selected: selected,
+          onTap: () => _toggle(i),
+        );
+      },
     );
   }
 
@@ -441,74 +488,95 @@ class _ThumbnailTile extends StatefulWidget {
 }
 
 class _ThumbnailTileState extends State<_ThumbnailTile> {
-  static final Map<String, Uint8List?> _cache = {};
-  Uint8List? _bytes;
-  bool _loading = false;
-  bool _error = false;
+  late Future<Uint8List?> _future;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    _future = ThumbnailCache.instance.fetch(widget.item.contentUri);
   }
 
-  Future<void> _load() async {
-    if (_cache.containsKey(widget.item.contentUri)) {
-      setState(() {
-        _bytes = _cache[widget.item.contentUri];
-      });
-      return;
-    }
-    setState(() => _loading = true);
-    try {
-      final b = await MediaStoreChannel()
-          .getThumbnail(widget.item.contentUri, maxDim: 256);
-      _cache[widget.item.contentUri] = b;
-      if (!mounted) return;
-      setState(() {
-        _bytes = b;
-        _loading = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _error = true;
-        _loading = false;
-      });
+  @override
+  void didUpdateWidget(covariant _ThumbnailTile oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.item.contentUri != widget.item.contentUri) {
+      _future = ThumbnailCache.instance.fetch(widget.item.contentUri);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return GestureDetector(
-      onTap: widget.onTap,
-      child: AnimatedScale(
-        scale: widget.selected ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 120),
-        curve: Curves.easeOut,
+    // RepaintBoundary makes each tile its own compositor layer — scrolling
+    // and selection animations on neighbors no longer re-rasterize this
+    // tile's decoded bitmap.
+    return RepaintBoundary(
+      child: GestureDetector(
+        onTap: widget.onTap,
         child: Stack(
           fit: StackFit.expand,
           children: [
-            Container(
-              decoration: BoxDecoration(
-                color: c.panel,
+            // Base image layer — rebuilds ONLY when the future resolves or
+            // URI changes, not on every selection toggle.
+            Positioned.fill(
+              child: ClipRRect(
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(
-                  color: widget.selected ? c.accent : c.border,
-                  width: widget.selected ? 2 : 1,
+                child: Container(
+                  color: c.panel,
+                  child: FutureBuilder<Uint8List?>(
+                    future: _future,
+                    builder: (_, snap) {
+                      if (snap.connectionState != ConnectionState.done) {
+                        // Plain dim panel — no spinner per tile. Cheaper than
+                        // CircularProgressIndicator × 120.
+                        return const SizedBox.expand();
+                      }
+                      final bytes = snap.data;
+                      if (bytes == null) {
+                        return Center(
+                          child: Icon(
+                            Icons.broken_image_outlined,
+                            color: c.inkFaint,
+                            size: 22,
+                          ),
+                        );
+                      }
+                      // Only cacheWidth — Image.memory scales height
+                      // preserving aspect. Setting BOTH triggers ResizeImage
+                      // with default `policy: exact` which stretches to
+                      // square and distorts non-1:1 photos. Width 400 keeps
+                      // bitmap small (~600 KB/tile on landscape) while
+                      // staying ≥ tile display size under BoxFit.cover.
+                      return Image.memory(
+                        bytes,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        filterQuality: FilterQuality.medium,
+                        cacheWidth: 400,
+                      );
+                    },
+                  ),
                 ),
               ),
-              clipBehavior: Clip.antiAlias,
-              child: _thumbInner(c),
             ),
-            if (widget.selected)
-              Container(
-                decoration: BoxDecoration(
-                  color: c.accentSoft,
-                  borderRadius: BorderRadius.circular(6),
+            // Selection border + soft overlay — only this small layer
+            // rebuilds when `widget.selected` flips.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  curve: Curves.easeOut,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(
+                      color: widget.selected ? c.accent : c.border,
+                      width: widget.selected ? 2 : 1,
+                    ),
+                    color: widget.selected ? c.accentSoft : Colors.transparent,
+                  ),
                 ),
               ),
+            ),
             Positioned(
               left: 6,
               bottom: 5,
@@ -537,32 +605,6 @@ class _ThumbnailTileState extends State<_ThumbnailTile> {
         ),
       ),
     );
-  }
-
-  Widget _thumbInner(LivebackColors c) {
-    if (_bytes != null) {
-      return Image.memory(_bytes!, fit: BoxFit.cover, gaplessPlayback: true);
-    }
-    if (_error) {
-      return Container(
-        color: c.border,
-        alignment: Alignment.center,
-        child: Icon(Icons.broken_image_outlined, color: c.inkFaint, size: 22),
-      );
-    }
-    if (_loading) {
-      return Center(
-        child: SizedBox(
-          width: 14,
-          height: 14,
-          child: CircularProgressIndicator(
-            strokeWidth: 1.6,
-            color: c.inkFaint,
-          ),
-        ),
-      );
-    }
-    return const SizedBox.shrink();
   }
 }
 
@@ -602,3 +644,119 @@ String _formatSize(int bytes) {
 }
 
 enum _GestureMode { idle, dragSelect, scroll }
+
+class _LoadingState extends StatelessWidget {
+  const _LoadingState();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Center(
+      child: SizedBox(
+        width: 26,
+        height: 26,
+        child: CircularProgressIndicator(strokeWidth: 2, color: c.inkFaint),
+      ),
+    );
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.collections_outlined, size: 44, color: c.inkFaint),
+            const SizedBox(height: 16),
+            Text(
+              '图库里没有图片',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+                color: c.ink,
+                letterSpacing: -0.15,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              '拍摄实况图或从相册导入后再来',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: c.inkDim, height: 1.4),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PermissionState extends StatelessWidget {
+  final bool permanentlyDenied;
+  final VoidCallback onGrant;
+
+  const _PermissionState({
+    required this.permanentlyDenied,
+    required this.onGrant,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final title = permanentlyDenied ? '权限已关闭' : '需要图库访问权限';
+    final body = permanentlyDenied
+        ? '在系统设置里给 Liveback 开启"照片和视频"权限后再回到这里。'
+        : '读取你相册里的实况图，才能送去修复。权限只用于本机解析，不上传。';
+    final btn = permanentlyDenied ? '去系统设置' : '授予权限';
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.lock_outline, size: 40, color: c.inkFaint),
+            const SizedBox(height: 14),
+            Text(
+              title,
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
+                color: c.ink,
+                letterSpacing: -0.15,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              body,
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 13, color: c.inkDim, height: 1.5),
+            ),
+            const SizedBox(height: 18),
+            ElevatedButton(
+              onPressed: onGrant,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: c.accent,
+                foregroundColor: c.bg,
+                elevation: 0,
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 22, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: Text(btn,
+                  style: const TextStyle(
+                      fontSize: 14, fontWeight: FontWeight.w600)),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
