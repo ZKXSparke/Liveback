@@ -1,0 +1,495 @@
+// Owner: T3 (UI teammate). Reference: Doc 1 §5.2 routes + §7 animation.
+//
+// Full-screen preview for a gallery tile: letterboxed on brand-dark bg.
+// Tap on a tile in the gallery → this page. Long-press-and-HOLD → if the
+// source JPEG has a Motion Photo MP4 trailer, extract and play it in
+// place via video_player. Release → pause + seek-to-zero, still image
+// returns. Non-motion photos show a subtle 2-second "该图片无视频段"
+// overlay instead of playback.
+//
+// Lifecycle:
+//   initState → copyInputToSandbox + MotionPhotoParser.parse (does NOT
+//   extract the MP4 — that work is deferred to the first long-press so
+//   users who only tap don't pay the IO cost).
+//   first long-press (motion photo) → extractAndPlay: stream the MP4 byte
+//   range into a temp file, init VideoPlayerController.file, play + loop.
+//   long-press end → pause + seek(0). Still image still sits underneath.
+//   dispose → dispose controller, delete extracted temp file, fire-and-
+//   forget releaseSandbox.
+//
+// Memory: MP4 extraction streams through a 256 KB rolling buffer so the
+// full JPEG never sits in Dart heap.
+
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
+
+import '../../core/constants.dart';
+import '../../services/mediastore_channel.dart';
+import '../../services/motion_photo_parser.dart';
+import '../../widgets/mono_text.dart';
+import '../../widgets/theme_access.dart';
+import 'extract_mp4_range.dart';
+
+export 'extract_mp4_range.dart' show extractMp4Range;
+
+/// Arguments for the `/preview` route.
+class PreviewPageArgs {
+  final String contentUri;
+  final String displayName;
+  final int sizeBytes;
+
+  const PreviewPageArgs({
+    required this.contentUri,
+    required this.displayName,
+    required this.sizeBytes,
+  });
+}
+
+class PreviewPage extends StatefulWidget {
+  final PreviewPageArgs args;
+
+  const PreviewPage({super.key, required this.args});
+
+  @override
+  State<PreviewPage> createState() => _PreviewPageState();
+}
+
+class _PreviewPageState extends State<PreviewPage> {
+  final _channel = MediaStoreChannel();
+  final _parser = MotionPhotoParser();
+
+  // Sandbox + probe state.
+  bool _sandboxReady = false;
+  bool _probing = false;
+  bool _oversized = false; // file exceeds max preview size
+  String? _sandboxPath;
+  String? _loadError;
+  late final String _taskId;
+
+  // Motion Photo probe result.
+  bool _isMotionPhoto = false;
+  int? _mp4Start;
+  int? _mp4End;
+
+  // Extracted MP4 + video controller.
+  String? _extractedMp4Path;
+  VideoPlayerController? _video;
+  bool _isPlaying = false;
+  bool _extractInFlight = false;
+  bool _decodeFailed = false;
+
+  // UX overlays.
+  bool _longPressedWithoutVideo = false;
+  Timer? _noVideoHideTimer;
+  bool _showHoldHint = false;
+  Timer? _hintHideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _taskId = 'preview-${DateTime.now().microsecondsSinceEpoch}';
+    // Reject files larger than the fix_service ceiling up-front. This is
+    // generous (2 GiB) — most photos are <30 MB — but prevents us from
+    // starting a multi-hundred-MB sandbox copy for a pathological input.
+    if (widget.args.sizeBytes > LivebackConstants.maxFileSizeBytes) {
+      _oversized = true;
+    } else {
+      unawaited(_resolveSandboxThenProbe());
+    }
+  }
+
+  Future<void> _resolveSandboxThenProbe() async {
+    try {
+      final path = await _channel.copyInputToSandbox(
+        contentUri: widget.args.contentUri,
+        taskId: _taskId,
+      );
+      if (!mounted) return;
+      setState(() {
+        _sandboxPath = path;
+        _sandboxReady = true;
+        _probing = true;
+      });
+
+      final structure = await _parser.parse(path);
+      if (!mounted) return;
+      final start = structure.mp4Start;
+      final end = structure.mp4End;
+      setState(() {
+        _mp4Start = start;
+        _mp4End = end;
+        _isMotionPhoto = start != null && end != null && end > start;
+        _probing = false;
+      });
+
+      // Reveal the hold hint once probe resolves — only if there's video.
+      if (_isMotionPhoto) {
+        setState(() => _showHoldHint = true);
+        _hintHideTimer?.cancel();
+        _hintHideTimer = Timer(const Duration(seconds: 4), () {
+          if (!mounted) return;
+          setState(() => _showHoldHint = false);
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = '$e';
+        _sandboxReady = true;
+        _probing = false;
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _hintHideTimer?.cancel();
+    _noVideoHideTimer?.cancel();
+    final controller = _video;
+    _video = null;
+    unawaited(() async {
+      await controller?.dispose();
+    }());
+    final extracted = _extractedMp4Path;
+    if (extracted != null) {
+      unawaited(() async {
+        try {
+          final f = File(extracted);
+          if (await f.exists()) await f.delete();
+        } catch (_) {}
+      }());
+    }
+    // Fire-and-forget sandbox cleanup — best-effort per MediaStoreChannel
+    // contract.
+    unawaited(_channel.releaseSandbox(taskId: _taskId).catchError((_) {}));
+    super.dispose();
+  }
+
+  Future<void> _handleLongPressStart(LongPressStartDetails _) async {
+    // Hide the hold hint on first long-press regardless of outcome.
+    if (_showHoldHint) {
+      setState(() => _showHoldHint = false);
+      _hintHideTimer?.cancel();
+    }
+    if (!_sandboxReady || _loadError != null || _oversized) return;
+
+    if (!_isMotionPhoto) {
+      _noVideoHideTimer?.cancel();
+      setState(() => _longPressedWithoutVideo = true);
+      _noVideoHideTimer = Timer(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        setState(() => _longPressedWithoutVideo = false);
+      });
+      return;
+    }
+    await _extractAndPlay();
+  }
+
+  Future<void> _handleLongPressEnd(LongPressEndDetails _) async {
+    _noVideoHideTimer?.cancel();
+    if (_longPressedWithoutVideo) {
+      setState(() => _longPressedWithoutVideo = false);
+    }
+    final v = _video;
+    if (v != null && v.value.isInitialized) {
+      await v.pause();
+      await v.seekTo(Duration.zero);
+    }
+    if (mounted && _isPlaying) {
+      setState(() => _isPlaying = false);
+    }
+  }
+
+  Future<void> _extractAndPlay() async {
+    if (_extractInFlight) return;
+    final src = _sandboxPath;
+    final start = _mp4Start;
+    final end = _mp4End;
+    if (src == null || start == null || end == null) return;
+
+    // Already have a controller ready → just resume.
+    if (_video != null && _video!.value.isInitialized) {
+      await _video!.seekTo(Duration.zero);
+      await _video!.play();
+      if (!mounted) return;
+      setState(() => _isPlaying = true);
+      return;
+    }
+
+    _extractInFlight = true;
+    try {
+      // Extract MP4 into cache/liveback-io/preview-<id>.mp4.
+      final sandboxDir = File(src).parent.path;
+      final mp4Path = '$sandboxDir/$_taskId.mp4';
+
+      if (_extractedMp4Path == null) {
+        await extractMp4Range(
+          srcPath: src,
+          mp4Start: start,
+          mp4End: end,
+          dstPath: mp4Path,
+        );
+        _extractedMp4Path = mp4Path;
+      }
+
+      final controller = VideoPlayerController.file(File(mp4Path));
+      try {
+        await controller.initialize();
+      } catch (e) {
+        await controller.dispose();
+        if (!mounted) return;
+        setState(() {
+          _decodeFailed = true;
+        });
+        // Self-hide after 2 seconds.
+        Timer(const Duration(seconds: 2), () {
+          if (!mounted) return;
+          setState(() => _decodeFailed = false);
+        });
+        return;
+      }
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      controller.setLooping(true);
+      await controller.play();
+      setState(() {
+        _video = controller;
+        _isPlaying = true;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _decodeFailed = true;
+      });
+      Timer(const Duration(seconds: 2), () {
+        if (!mounted) return;
+        setState(() => _decodeFailed = false);
+      });
+    } finally {
+      _extractInFlight = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // Force the dark palette for preview chrome (back chip, overlays) —
+    // scaffold bg stays the brand splash charcoal regardless of system theme.
+    const bgColor = Color(0xFF0B1013);
+    const darkColors = LivebackColors.dark;
+
+    return Scaffold(
+      backgroundColor: bgColor,
+      body: Stack(
+        fit: StackFit.expand,
+        children: [
+          // Center photo / video layer.
+          Center(child: _buildContent(darkColors)),
+
+          // Hit-absorbing overlay for long-press. Sits above the photo so
+          // long-press is recognised anywhere on the screen. The outer
+          // GestureDetector uses HitTestBehavior.opaque so empty letterbox
+          // area also triggers.
+          Positioned.fill(
+            child: GestureDetector(
+              behavior: HitTestBehavior.translucent,
+              onLongPressStart: _handleLongPressStart,
+              onLongPressEnd: _handleLongPressEnd,
+            ),
+          ),
+
+          // Top-left back chip.
+          Positioned(
+            left: 8,
+            top: MediaQuery.paddingOf(context).top + 4,
+            child: Material(
+              color: Colors.transparent,
+              child: IconButton(
+                onPressed: () => Navigator.of(context).maybePop(),
+                icon: Icon(Icons.arrow_back_ios_new,
+                    color: darkColors.ink, size: 20),
+                splashRadius: 22,
+              ),
+            ),
+          ),
+
+          // Hold hint at bottom center.
+          if (_showHoldHint) const _HoldHintPill(colors: darkColors),
+
+          // 无视频段 overlay pill.
+          if (_longPressedWithoutVideo)
+            const _CenterPill(
+              text: '该图片无视频段',
+              colors: darkColors,
+            ),
+
+          // Decode failure overlay.
+          if (_decodeFailed)
+            const _CenterPill(
+              text: '视频解码失败',
+              colors: darkColors,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildContent(LivebackColors colors) {
+    if (_oversized) {
+      return _MessageBanner(
+        message: '文件过大，无法预览',
+        colors: colors,
+      );
+    }
+    if (_loadError != null) {
+      return _MessageBanner(
+        message: '加载失败',
+        colors: colors,
+      );
+    }
+    if (!_sandboxReady || _probing) {
+      return SizedBox(
+        width: 28,
+        height: 28,
+        child: CircularProgressIndicator(
+          strokeWidth: 2,
+          color: colors.inkFaint,
+        ),
+      );
+    }
+    final path = _sandboxPath;
+    if (path == null) {
+      return _MessageBanner(
+        message: '加载失败',
+        colors: colors,
+      );
+    }
+
+    // Layered: still image always present (behind video). Video layer
+    // fades in/out on top when playing.
+    return Stack(
+      fit: StackFit.passthrough,
+      children: [
+        InteractiveViewer(
+          panEnabled: true,
+          scaleEnabled: true,
+          minScale: 1,
+          maxScale: 4,
+          child: Image.file(
+            File(path),
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+        if (_video != null && _video!.value.isInitialized)
+          Positioned.fill(
+            child: AnimatedOpacity(
+              opacity: _isPlaying ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 120),
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: _video!.value.aspectRatio,
+                  child: VideoPlayer(_video!),
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _HoldHintPill extends StatelessWidget {
+  final LivebackColors colors;
+  const _HoldHintPill({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Positioned(
+      left: 0,
+      right: 0,
+      bottom: MediaQuery.paddingOf(context).bottom + 22,
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: const Color(0x66000000),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: colors.border, width: 1),
+          ),
+          child: MonoText(
+            '长按预览视频',
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.inkFaint,
+              letterSpacing: 0.2,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CenterPill extends StatelessWidget {
+  final String text;
+  final LivebackColors colors;
+  const _CenterPill({required this.text, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Center(
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          decoration: BoxDecoration(
+            color: const Color(0xCC000000),
+            borderRadius: BorderRadius.circular(999),
+            border: Border.all(color: colors.borderStrong, width: 1),
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              fontSize: 13,
+              color: colors.ink,
+              fontWeight: FontWeight.w500,
+              letterSpacing: -0.1,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _MessageBanner extends StatelessWidget {
+  final String message;
+  final LivebackColors colors;
+  const _MessageBanner({required this.message, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.all(22),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.info_outline, size: 36, color: colors.inkFaint),
+          const SizedBox(height: 10),
+          Text(
+            message,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 14,
+              color: colors.inkDim,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
