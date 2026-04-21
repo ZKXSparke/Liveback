@@ -10,11 +10,18 @@
 // (QUERY_FAILED / INSERT_FAILED / NO_SPACE / PERMISSION_DENIED / ...)
 // get translated into LivebackException subclasses (Doc 1 §A.3 tail).
 
+import 'dart:collection';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
 import '../core/constants.dart';
 import '../exceptions/liveback_exceptions.dart';
+import '../models/gallery_album.dart';
 import '../models/gallery_item.dart';
+import 'motion_photo_probe.dart' show MotionPhotoProbe;
+
+export 'motion_photo_probe.dart' show MotionPhotoProbe;
 
 class MediaStoreChannel {
   MediaStoreChannel({MethodChannel? channel})
@@ -24,14 +31,20 @@ class MediaStoreChannel {
 
   /// Lists JPEG images from MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
   /// sorted by DATE_TAKEN DESC. Paged via [offset] / [limit].
+  ///
+  /// [bucketId], when non-null, restricts the result to rows whose
+  /// MediaStore BUCKET_ID matches — i.e. a single album/folder. Additive
+  /// to Doc 1 §A.6; default `null` preserves the all-albums behaviour.
   Future<List<GalleryItem>> queryImages({
     int limit = 500,
     int offset = 0,
+    int? bucketId,
   }) async {
     try {
       final raw = await _channel.invokeMethod<List<dynamic>>('queryImages', {
         'limit': limit,
         'offset': offset,
+        if (bucketId != null) 'bucketId': bucketId,
       });
       if (raw == null) return const <GalleryItem>[];
       return raw
@@ -40,6 +53,60 @@ class MediaStoreChannel {
           .toList(growable: false);
     } on PlatformException catch (e) {
       throw _mapChannelError(e);
+    }
+  }
+
+  /// Returns the list of JPEG-containing MediaStore buckets (albums /
+  /// folders), sorted by most-recently-taken photo. Capped at 100 albums.
+  /// Empty list if the device has no JPEGs indexed — never null.
+  Future<List<GalleryAlbum>> queryAlbums() async {
+    try {
+      final raw = await _channel.invokeMethod<List<dynamic>>('queryAlbums');
+      if (raw == null) return const <GalleryAlbum>[];
+      return raw
+          .whereType<Map>()
+          .map((m) => _parseGalleryAlbum(m.cast<String, dynamic>()))
+          .toList(growable: false);
+    } on PlatformException catch (e) {
+      throw _mapChannelError(e);
+    }
+  }
+
+  /// Cheap Motion-Photo classification for a single [contentUri]. Runs on
+  /// Kotlin's IO dispatcher in a tail-probe + head-probe sequence (see
+  /// `MediaStorePlugin.probeMotionPhoto`). Results are memoised per URI in
+  /// an in-memory LRU so scrolling back through the gallery never
+  /// re-probes.
+  ///
+  /// On PERMISSION_DENIED propagates [PermissionDeniedException]. All
+  /// other Kotlin failures are caught inside the plugin and surface as
+  /// `MotionPhotoProbe(isMotionPhoto:false, isSamsungNative:false)` so the
+  /// gallery tile renders without a badge rather than throwing.
+  Future<MotionPhotoProbe> probeMotionPhoto(String contentUri) async {
+    final cached = _probeCache._get(contentUri);
+    if (cached != null) return cached;
+    try {
+      final map = await _channel.invokeMapMethod<String, dynamic>(
+        'probeMotionPhoto',
+        {'contentUri': contentUri},
+      );
+      final isMotionPhoto = (map?['isMotionPhoto'] as bool?) ?? false;
+      final isSamsungNative = (map?['isSamsungNative'] as bool?) ?? false;
+      final probe = MotionPhotoProbe(
+        isMotionPhoto: isMotionPhoto,
+        isSamsungNative: isSamsungNative,
+      );
+      _probeCache._put(contentUri, probe);
+      return probe;
+    } on PlatformException catch (e) {
+      if (e.code == 'PERMISSION_DENIED') throw _mapChannelError(e);
+      // Any other error collapses to a no-badge result and is NOT cached —
+      // the failure might be transient (e.g. URI being rewritten), so a
+      // re-probe later is fine.
+      return const MotionPhotoProbe(
+        isMotionPhoto: false,
+        isSamsungNative: false,
+      );
     }
   }
 
@@ -170,6 +237,15 @@ class MediaStoreChannel {
   // Parsing + error mapping
   // -------------------------------------------------------------------------
 
+  GalleryAlbum _parseGalleryAlbum(Map<String, dynamic> m) {
+    return GalleryAlbum(
+      bucketId: (m['bucketId'] as num).toInt(),
+      displayName: (m['displayName'] as String?) ?? '(未命名)',
+      coverContentUri: m['coverContentUri'] as String,
+      count: (m['count'] as num).toInt(),
+    );
+  }
+
   GalleryItem _parseGalleryItem(Map<String, dynamic> m) {
     // DATE_TAKEN may be absent — fall back to dateAddedMs for sort keying
     // per Doc 3 §2.1 ("may fall back to dateAddedMs"). The fallback applies
@@ -232,3 +308,46 @@ class MediaStoreChannel {
     }
   }
 }
+
+/// Module-private LRU keyed by contentUri. Capped at 500 entries — typical
+/// gallery scroll sessions touch ~300 tiles, so this fits comfortably.
+const int _kProbeCacheCap = 500;
+
+class _ProbeLruCache {
+  final LinkedHashMap<String, MotionPhotoProbe> _map =
+      LinkedHashMap<String, MotionPhotoProbe>();
+
+  MotionPhotoProbe? _get(String key) {
+    final v = _map.remove(key);
+    if (v == null) return null;
+    _map[key] = v; // re-insert at tail (MRU position)
+    return v;
+  }
+
+  void _put(String key, MotionPhotoProbe probe) {
+    if (_map.containsKey(key)) {
+      _map.remove(key);
+    } else if (_map.length >= _kProbeCacheCap) {
+      // Evict oldest (head of insertion order).
+      _map.remove(_map.keys.first);
+    }
+    _map[key] = probe;
+  }
+
+  /// Visible for testing — drops all entries.
+  void _clear() => _map.clear();
+
+  /// Visible for testing — current size.
+  int get _size => _map.length;
+}
+
+final _ProbeLruCache _probeCache = _ProbeLruCache();
+
+/// Visible for testing: clears the module-private probe cache so each test
+/// runs from a clean slate.
+@visibleForTesting
+void debugClearMotionPhotoProbeCache() => _probeCache._clear();
+
+/// Visible for testing: current cache size.
+@visibleForTesting
+int debugMotionPhotoProbeCacheSize() => _probeCache._size;
