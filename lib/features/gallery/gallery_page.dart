@@ -21,6 +21,7 @@ import '../../services/task_queue.dart';
 import '../../widgets/mono_text.dart';
 import '../../widgets/theme_access.dart';
 import '../../widgets/thumbnail_cache.dart';
+import '../preview/preview_page.dart';
 
 const int _kMaxSelection = 100;
 const int _kPageSize = 120;
@@ -132,6 +133,17 @@ class _GalleryPageState extends State<GalleryPage> {
         _selected.add(index);
       }
     });
+  }
+
+  void _openPreview(GalleryItem item) {
+    Navigator.of(context).pushNamed(
+      '/preview',
+      arguments: PreviewPageArgs(
+        contentUri: item.contentUri,
+        displayName: item.displayName,
+        sizeBytes: item.size,
+      ),
+    );
   }
 
   void _applyTargetState(int index) {
@@ -346,7 +358,8 @@ class _GalleryPageState extends State<GalleryPage> {
           key: ValueKey(item.id),
           item: item,
           selected: selected,
-          onTap: () => _toggle(i),
+          onTap: () => _openPreview(item),
+          onCheckboxTap: () => _toggle(i),
         );
       },
     );
@@ -474,13 +487,21 @@ class _GalleryPageState extends State<GalleryPage> {
 class _ThumbnailTile extends StatefulWidget {
   final GalleryItem item;
   final bool selected;
+
+  /// Body tap — fires when the user taps anywhere on the tile except the
+  /// checkmark chip. Wired to open the preview page.
   final VoidCallback onTap;
+
+  /// Checkbox tap — fires when the user taps the ~20 dp checkmark chip in
+  /// the top-right corner. Wired to toggle selection.
+  final VoidCallback onCheckboxTap;
 
   const _ThumbnailTile({
     super.key,
     required this.item,
     required this.selected,
     required this.onTap,
+    required this.onCheckboxTap,
   });
 
   @override
@@ -599,7 +620,17 @@ class _ThumbnailTileState extends State<_ThumbnailTile> {
             Positioned(
               right: 6,
               top: 6,
-              child: _Checkmark(selected: widget.selected),
+              // Absorb tap so it targets selection toggle instead of the
+              // outer body tap (which opens preview). Slight extra padding
+              // widens the 20 dp chip's hit area without resizing the visual.
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: widget.onCheckboxTap,
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: _Checkmark(selected: widget.selected),
+                ),
+              ),
             ),
           ],
         ),
