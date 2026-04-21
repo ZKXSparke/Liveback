@@ -38,6 +38,8 @@ import java.io.File
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.io.IOException
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 
 class MediaStorePlugin(private val appContext: Context) :
     FlutterPlugin, MethodChannel.MethodCallHandler {
@@ -61,6 +63,32 @@ class MediaStorePlugin(private val appContext: Context) :
 
         // Input copy buffer size (Doc 3 §3).
         private const val COPY_BUFFER_BYTES = 64 * 1024
+
+        // Motion-Photo probe constants.
+        //
+        // Tail-probe window: the SEF directory for a single-record file is
+        // 32 bytes (see Doc 2 §4.4). We read up to 64 bytes to cover multi-
+        // record trailers that Samsung native photos usually emit (5 records
+        // ≈ 100 bytes, so 64 B is not enough to walk the whole directory,
+        // but it is enough to confirm SEFT/SEFH framing and capture the
+        // declared sef_size, which we then re-read fully via a second seek).
+        private const val PROBE_TAIL_BYTES = 64
+        // Head-probe window: scan at most 8 MB for the JPEG EOI. Anything
+        // bigger is a pathological image and is fine to report as "no MP".
+        private const val PROBE_HEAD_MAX_BYTES = 8 * 1024 * 1024
+        // How many bytes past the JPEG EOI to scan for the 'ftyp' ASCII.
+        // Matches the parser's §2.2 window — MP4 trailers always sit at
+        // offset 0..24 past EOI (SEF inline marker before ftyp is 24 bytes).
+        private const val PROBE_FTYP_WINDOW_BYTES = 64
+        // Skip probing at all for files smaller than this — we cap the lower
+        // bound to protect against MediaStore returning stub rows.
+        private const val PROBE_MIN_FILE_BYTES = 32 * 1024
+        // Reasonable cap on SEF directory records to walk. Samsung's own
+        // emitter writes ≤ 5; we allow up to 32 to match the full parser.
+        private const val PROBE_MAX_SEF_RECORDS = 32
+
+        // Albums default cap (folder picker never needs more than this).
+        private const val ALBUMS_LIMIT = 100
     }
 
     private var channel: MethodChannel? = null
@@ -87,6 +115,8 @@ class MediaStorePlugin(private val appContext: Context) :
             try {
                 when (call.method) {
                     "queryImages" -> queryImages(call, result)
+                    "queryAlbums" -> queryAlbums(result)
+                    "probeMotionPhoto" -> probeMotionPhoto(call, result)
                     "getThumbnail" -> getThumbnail(call, result)
                     "openInputDescriptor" -> openInputDescriptor(call, result)
                     "closeDescriptor" -> closeDescriptor(call, result)
@@ -130,6 +160,10 @@ class MediaStorePlugin(private val appContext: Context) :
         // sortBy / sortOrder accepted for forward-compat; we always sort by
         // DATE_TAKEN DESC per Doc 3 §2.1 performance note.
         val sortBy = call.argument<String>("sortBy") ?: "date_taken"
+        // Optional per-album filter (additive — default null preserves Doc 1
+        // §A.6 behaviour). BUCKET_ID is the hash-based album id MediaStore
+        // derives from the parent folder path; see queryAlbums() below.
+        val bucketIdArg = call.argument<Number>("bucketId")?.toLong()
 
         val projection = arrayOf(
             MediaStore.Images.Media._ID,
@@ -145,9 +179,16 @@ class MediaStorePlugin(private val appContext: Context) :
         // Bundle-form query (API 26+; we're minSdk 29). Avoids relying on the
         // MediaProvider's SQL LIMIT/OFFSET leak behaviour.
         val args = Bundle().apply {
-            putString(ContentResolver.QUERY_ARG_SQL_SELECTION, "${MediaStore.Images.Media.MIME_TYPE} = ?")
+            val selection = StringBuilder("${MediaStore.Images.Media.MIME_TYPE} = ?")
+            val selectionArgs = ArrayList<String>()
+            selectionArgs.add(mimeFilter)
+            if (bucketIdArg != null) {
+                selection.append(" AND ${MediaStore.Images.Media.BUCKET_ID} = ?")
+                selectionArgs.add(bucketIdArg.toString())
+            }
+            putString(ContentResolver.QUERY_ARG_SQL_SELECTION, selection.toString())
             putStringArray(
-                ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf(mimeFilter)
+                ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, selectionArgs.toTypedArray()
             )
             val sortCol = if (sortBy == "date_added") {
                 MediaStore.Images.Media.DATE_ADDED
@@ -742,6 +783,362 @@ class MediaStorePlugin(private val appContext: Context) :
                 // success path — nothing to clean up.
             }
         }
+    }
+
+    // ---------------------------------------------------------------------
+    // queryAlbums — buckets (folders) for the album picker.
+    //
+    // Groups EXTERNAL_CONTENT_URI rows by BUCKET_ID + BUCKET_DISPLAY_NAME,
+    // returns up to [ALBUMS_LIMIT] buckets sorted by most-recently-taken
+    // image (DATE_TAKEN DESC, falling back to DATE_ADDED for rows with NULL
+    // DATE_TAKEN). The cover URI is the newest image in each bucket.
+    // ---------------------------------------------------------------------
+
+    @SuppressLint("InlinedApi")
+    private suspend fun queryAlbums(result: MethodChannel.Result) {
+        val projection = arrayOf(
+            MediaStore.Images.Media._ID,
+            MediaStore.Images.Media.BUCKET_ID,
+            MediaStore.Images.Media.BUCKET_DISPLAY_NAME,
+            MediaStore.Images.Media.DATE_TAKEN,
+            MediaStore.Images.Media.DATE_ADDED,
+        )
+        // Filter to JPEG only (same universe as queryImages) so the counts
+        // the UI shows stay in sync with what the gallery grid will load.
+        val args = Bundle().apply {
+            putString(
+                ContentResolver.QUERY_ARG_SQL_SELECTION,
+                "${MediaStore.Images.Media.MIME_TYPE} = ?",
+            )
+            putStringArray(
+                ContentResolver.QUERY_ARG_SQL_SELECTION_ARGS, arrayOf("image/jpeg"),
+            )
+            putStringArray(
+                ContentResolver.QUERY_ARG_SORT_COLUMNS,
+                arrayOf(
+                    MediaStore.Images.Media.DATE_TAKEN,
+                    MediaStore.Images.Media.DATE_ADDED,
+                ),
+            )
+            putInt(
+                ContentResolver.QUERY_ARG_SORT_DIRECTION,
+                ContentResolver.QUERY_SORT_DIRECTION_DESCENDING,
+            )
+        }
+
+        data class BucketAgg(
+            val id: Long,
+            var displayName: String,
+            var coverUri: String,
+            var coverSortKey: Long,
+            var count: Int,
+        )
+
+        val buckets = LinkedHashMap<Long, BucketAgg>()
+        try {
+            contentResolver.query(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                projection,
+                args,
+                null,
+            )?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media._ID)
+                val bidCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.BUCKET_ID)
+                val bnameCol = cursor.getColumnIndexOrThrow(
+                    MediaStore.Images.Media.BUCKET_DISPLAY_NAME
+                )
+                val dtCol = cursor.getColumnIndex(MediaStore.Images.Media.DATE_TAKEN)
+                val daCol = cursor.getColumnIndexOrThrow(MediaStore.Images.Media.DATE_ADDED)
+                while (cursor.moveToNext()) {
+                    if (cursor.isNull(bidCol)) continue
+                    val bucketId = cursor.getLong(bidCol)
+                    val name = if (!cursor.isNull(bnameCol)) {
+                        cursor.getString(bnameCol)
+                    } else {
+                        "(未命名)"
+                    }
+                    val id = cursor.getLong(idCol)
+                    val uri = ContentUris.withAppendedId(
+                        MediaStore.Images.Media.EXTERNAL_CONTENT_URI, id,
+                    ).toString()
+                    // Sort key: DATE_TAKEN ms if present, else DATE_ADDED s * 1000.
+                    val sortKey = if (dtCol >= 0 && !cursor.isNull(dtCol)) {
+                        cursor.getLong(dtCol)
+                    } else {
+                        cursor.getLong(daCol) * 1000L
+                    }
+                    val existing = buckets[bucketId]
+                    if (existing == null) {
+                        buckets[bucketId] = BucketAgg(
+                            id = bucketId,
+                            displayName = name ?: "(未命名)",
+                            coverUri = uri,
+                            coverSortKey = sortKey,
+                            count = 1,
+                        )
+                    } else {
+                        existing.count += 1
+                        if (sortKey > existing.coverSortKey) {
+                            existing.coverUri = uri
+                            existing.coverSortKey = sortKey
+                        }
+                    }
+                }
+            }
+        } catch (se: SecurityException) {
+            respondError(result, "PERMISSION_DENIED",
+                "READ_MEDIA_IMAGES / READ_EXTERNAL_STORAGE not granted")
+            return
+        } catch (e: Exception) {
+            respondError(result, "QUERY_FAILED", e.message ?: "query failed")
+            return
+        }
+
+        // Order by most-recent cover, cap to ALBUMS_LIMIT.
+        val ordered = buckets.values
+            .sortedByDescending { it.coverSortKey }
+            .take(ALBUMS_LIMIT)
+            .map {
+                mapOf(
+                    "bucketId" to it.id,
+                    "displayName" to it.displayName,
+                    "coverContentUri" to it.coverUri,
+                    "count" to it.count,
+                )
+            }
+        respondSuccess(result, ordered)
+    }
+
+    // ---------------------------------------------------------------------
+    // probeMotionPhoto — cheap (≤ 50 ms target) Motion-Photo classification.
+    //
+    // Two signals surface to the UI:
+    //   isMotionPhoto     — file has MP4 bytes after JPEG EOI (djimimo OR
+    //                       Samsung-native)
+    //   isSamsungNative   — file additionally has a valid SEFH/SEFT trailer
+    //                       whose directory contains a MotionPhoto_Data
+    //                       record (type code 00 00 30 0A).
+    //
+    // Idempotency semantics match architecture/02-binary-format-lib.md §8 —
+    // we treat SEFT at tail + SEFH framing + MotionPhoto_Data record as
+    // "already Samsung-shape", even if EXIF Make isn't spoofed (condition
+    // (d) in the doc is optional for probe).
+    //
+    // Graceful degradation: any unexpected error returns
+    // {isMotionPhoto:false, isSamsungNative:false} so the UI simply skips
+    // the badge. Only SecurityException surfaces as PERMISSION_DENIED (so
+    // the upper layer can prompt).
+    // ---------------------------------------------------------------------
+
+    private suspend fun probeMotionPhoto(
+        call: MethodCall,
+        result: MethodChannel.Result,
+    ) {
+        val contentUri = call.argument<String>("contentUri")
+        if (contentUri.isNullOrEmpty()) {
+            respondError(result, "INVALID_ARGUMENT", "contentUri is required")
+            return
+        }
+        val uri = try {
+            Uri.parse(contentUri)
+        } catch (_: Exception) {
+            // Malformed URI — degrade silently (no badge). Not a security
+            // boundary so we return a null-result rather than an error.
+            respondSuccess(result, mapOf(
+                "isMotionPhoto" to false,
+                "isSamsungNative" to false,
+            ))
+            return
+        }
+
+        try {
+            contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                val size = pfd.statSize
+                if (size < PROBE_MIN_FILE_BYTES) {
+                    respondSuccess(result, mapOf(
+                        "isMotionPhoto" to false,
+                        "isSamsungNative" to false,
+                    ))
+                    return
+                }
+                FileInputStream(pfd.fileDescriptor).channel.use { ch ->
+                    val isSamsungNative = probeSefTail(ch, size)
+                    val isMotionPhoto = if (isSamsungNative) {
+                        true
+                    } else {
+                        probeFtypHead(ch, size)
+                    }
+                    respondSuccess(result, mapOf(
+                        "isMotionPhoto" to isMotionPhoto,
+                        "isSamsungNative" to isSamsungNative,
+                    ))
+                }
+            } ?: run {
+                // openFileDescriptor returning null is rare; degrade.
+                respondSuccess(result, mapOf(
+                    "isMotionPhoto" to false,
+                    "isSamsungNative" to false,
+                ))
+            }
+        } catch (se: SecurityException) {
+            respondError(result, "PERMISSION_DENIED", se.message ?: "no access to URI")
+        } catch (_: Throwable) {
+            // Any other failure: degrade to "no badge" rather than throw —
+            // the gallery tile still renders thumbnail + filename normally.
+            respondSuccess(result, mapOf(
+                "isMotionPhoto" to false,
+                "isSamsungNative" to false,
+            ))
+        }
+    }
+
+    /**
+     * Reads the last [PROBE_TAIL_BYTES] bytes of the file (via [ch]), checks
+     * for SEFT magic at EOF-4, reads the declared sef_size, seeks back to
+     * SEFH, and walks records looking for the MotionPhoto_Data type code.
+     *
+     * Returns true only if the full SEFH → record → MotionPhoto_Data chain
+     * parses. Any framing inconsistency returns false (gracefully) — see
+     * architecture doc §8 condition (b).
+     */
+    private fun probeSefTail(ch: java.nio.channels.FileChannel, size: Long): Boolean {
+        if (size < 32L) return false
+        val tailStart = size - PROBE_TAIL_BYTES.toLong().coerceAtMost(size)
+        val tailLen = (size - tailStart).toInt()
+        val tail = ByteBuffer.allocate(tailLen).order(ByteOrder.LITTLE_ENDIAN)
+        ch.position(tailStart)
+        var readTotal = 0
+        while (readTotal < tailLen) {
+            val n = ch.read(tail)
+            if (n < 0) return false
+            readTotal += n
+        }
+        val tailArr = tail.array()
+        // Check SEFT at EOF-4.
+        val seftOff = tailLen - 4
+        if (seftOff < 4) return false
+        if (tailArr[seftOff] != 0x53.toByte() ||
+            tailArr[seftOff + 1] != 0x45.toByte() ||
+            tailArr[seftOff + 2] != 0x46.toByte() ||
+            tailArr[seftOff + 3] != 0x54.toByte()
+        ) return false
+        // sef_size at EOF-8 (uint32 LE).
+        val sefSize = tail.getInt(seftOff - 4).toLong() and 0xFFFFFFFFL
+        if (sefSize < 24L || sefSize > size - 8L) return false
+        val sefhPos = size - 8L - sefSize
+        if (sefhPos < 0L) return false
+
+        // Read SEFH header + records (up to PROBE_MAX_SEF_RECORDS).
+        val headerAndRecordsLen = 12 + PROBE_MAX_SEF_RECORDS * 12
+        val readLen = headerAndRecordsLen.toLong().coerceAtMost(sefSize).toInt()
+        if (readLen < 12) return false
+        val hdr = ByteBuffer.allocate(readLen).order(ByteOrder.LITTLE_ENDIAN)
+        ch.position(sefhPos)
+        var hdrRead = 0
+        while (hdrRead < readLen) {
+            val n = ch.read(hdr)
+            if (n < 0) return false
+            hdrRead += n
+        }
+        val hdrArr = hdr.array()
+        // SEFH magic.
+        if (hdrArr[0] != 0x53.toByte() ||
+            hdrArr[1] != 0x45.toByte() ||
+            hdrArr[2] != 0x46.toByte() ||
+            hdrArr[3] != 0x48.toByte()
+        ) return false
+        // record count at offset 8 (LE uint32).
+        val recordCount = hdr.getInt(8).toLong() and 0xFFFFFFFFL
+        if (recordCount == 0L || recordCount > PROBE_MAX_SEF_RECORDS.toLong()) return false
+        val recsToScan = recordCount.toInt().coerceAtMost(
+            (readLen - 12) / 12
+        )
+        for (i in 0 until recsToScan) {
+            val off = 12 + i * 12
+            // type code is stored as 4 literal bytes in big-endian-looking
+            // order (00 00 30 0A). Compare verbatim; do NOT treat as LE.
+            if (hdrArr[off] == 0x00.toByte() &&
+                hdrArr[off + 1] == 0x00.toByte() &&
+                hdrArr[off + 2] == 0x30.toByte() &&
+                hdrArr[off + 3] == 0x0A.toByte()
+            ) {
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
+     * Streams the first [PROBE_HEAD_MAX_BYTES] bytes in 64 KiB chunks
+     * looking for the JPEG EOI marker (FF D9) using a sliding window. When
+     * found, reads the next [PROBE_FTYP_WINDOW_BYTES] bytes and searches
+     * for the ASCII 'ftyp' box type. Returns true on match.
+     *
+     * This is intentionally NOT a full JPEG segment walker — false
+     * positives (EOI byte sequence inside SOS entropy data) are very
+     * unlikely in the < 8 MB head of a Motion Photo, and the fix_service
+     * path does a full walk before any real work.
+     */
+    private fun probeFtypHead(ch: java.nio.channels.FileChannel, size: Long): Boolean {
+        val scanLen = size.coerceAtMost(PROBE_HEAD_MAX_BYTES.toLong())
+        if (scanLen < 4L) return false
+        val bufSize = 64 * 1024
+        val buf = ByteBuffer.allocate(bufSize)
+        var pos = 0L
+        var prevByte: Byte = 0
+        var hasPrev = false
+        while (pos < scanLen) {
+            buf.clear()
+            ch.position(pos)
+            val n = ch.read(buf)
+            if (n <= 0) return false
+            buf.flip()
+            val arr = buf.array()
+            // Scan for FF D9 across chunk boundary by prepending the last
+            // byte of the previous chunk.
+            if (hasPrev && n > 0) {
+                if (prevByte == 0xFF.toByte() && arr[0] == 0xD9.toByte()) {
+                    return lookForFtyp(ch, pos + 1, size)
+                }
+            }
+            var i = 0
+            while (i < n - 1) {
+                if (arr[i] == 0xFF.toByte() && arr[i + 1] == 0xD9.toByte()) {
+                    return lookForFtyp(ch, pos + i + 2, size)
+                }
+                i++
+            }
+            if (n > 0) {
+                prevByte = arr[n - 1]
+                hasPrev = true
+            }
+            pos += n
+        }
+        return false
+    }
+
+    private fun lookForFtyp(
+        ch: java.nio.channels.FileChannel,
+        afterEoi: Long,
+        size: Long,
+    ): Boolean {
+        val window = (size - afterEoi).coerceAtMost(PROBE_FTYP_WINDOW_BYTES.toLong())
+        if (window < 8L) return false
+        val buf = ByteBuffer.allocate(window.toInt())
+        ch.position(afterEoi)
+        var readTotal = 0
+        while (readTotal < window.toInt()) {
+            val n = ch.read(buf)
+            if (n < 0) return false
+            readTotal += n
+        }
+        val arr = buf.array()
+        for (i in 0..(arr.size - 4)) {
+            if (arr[i] == 0x66.toByte() && arr[i + 1] == 0x74.toByte() &&
+                arr[i + 2] == 0x79.toByte() && arr[i + 3] == 0x70.toByte()
+            ) return true
+        }
+        return false
     }
 
     // ---------------------------------------------------------------------
