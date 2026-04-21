@@ -1,0 +1,63 @@
+# Miscellaneous
+*.class
+*.log
+*.pyc
+*.swp
+.DS_Store
+.atom/
+.build/
+.buildlog/
+.history
+.svn/
+.swiftpm/
+migrate_working_dir/
+
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
+# VS Code: launch / tasks kept out of the tree by default. Uncomment
+# to share across contributors.
+#.vscode/
+
+# Flutter / Dart / Pub
+**/doc/api/
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache/
+.pub/
+/build/
+/coverage/
+
+# Symbolication
+app.*.symbols
+
+# Obfuscation
+app.*.map.json
+
+# Android Studio artifacts
+/android/app/debug
+/android/app/profile
+/android/app/release
+
+# Android signing material — NEVER commit
+android/key.properties
+android/*.jks
+android/*.keystore
+android/app/key.properties
+android/app/*.jks
+android/app/*.keystore
+
+# Local-only Android build settings
+local.properties
+
+# Platforms we do NOT ship — sub-project trees, if ever created, are
+# kept out of version control to avoid accidental re-scaffolding.
+ios/
+macos/
+web/
+windows/
+linux/

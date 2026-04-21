@@ -1,0 +1,35 @@
+name: liveback
+description: Repair Samsung Motion Photo metadata for WeChat compatibility. Local, offline.
+publish_to: 'none'
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.4.0
+  flutter: ">=3.24.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_local_notifications: ^17.2.3   # batch-complete notification (Doc 3 §7)
+  path_provider: ^2.1.4                  # cache dir resolution (Doc 1 §6.1)
+  exif: ^3.3.0                           # READ-ONLY EXIF parser; rewriter is self-written (Doc 2 §4.2)
+  shared_preferences: ^2.3.2             # app lifecycle observer flags, last-used options (Doc 1 §A.8)
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  integration_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+  test: ^1.25.0
+  mocktail: ^1.0.0
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/test_samples/djimimo_sample.jpg
+    - assets/fonts/JetBrainsMono-Regular.woff2      # bundled Mono font per brand §4
+  fonts:
+    - family: JetBrainsMono
+      fonts:
+        - asset: assets/fonts/JetBrainsMono-Regular.woff2
