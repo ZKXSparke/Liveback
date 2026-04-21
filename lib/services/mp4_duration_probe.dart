@@ -12,8 +12,6 @@ import '../utils/bytes.dart';
 /// See Doc 2 §5.2 for the box-walk algorithm and §5.3 for version-0 vs
 /// version-1 mvhd handling.
 class Mp4DurationProbe {
-  static const int _maxBoxDepth = 8;
-
   /// Probes the MP4 that starts at [ftypOffset] inside the random-access
   /// file [raf]. [fileEnd] is the exclusive upper bound (usually the
   /// physical file size). Returns null if mvhd is absent or malformed

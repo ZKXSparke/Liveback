@@ -209,8 +209,7 @@ class MotionPhotoParser {
       final remaining = fileSize - pos;
       final readLen = remaining < bufSize ? remaining : bufSize;
       await raf.setPosition(pos);
-      final chunkList = await raf.read(readLen);
-      final chunk = chunkList is Uint8List ? chunkList : Uint8List.fromList(chunkList);
+      final chunk = await raf.read(readLen);
       if (chunk.length < readLen) {
         return -1;
       }

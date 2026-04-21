@@ -59,7 +59,7 @@ class ExifRewriter {
       }
     }
 
-    final tiffStart = 10;
+    const tiffStart = 10;
     final tiff = Uint8List.view(
       originalAppOne.buffer,
       originalAppOne.offsetInBytes + tiffStart,
@@ -367,7 +367,7 @@ class ExifRewriter {
     // Emit TIFF with LE endian for determinism. Even if source was big-
     // endian, emitting little-endian is valid — the JPEG consumer parses
     // `II/MM` at offset 0 and uses it.
-    final outEndian = Endian.little;
+    const outEndian = Endian.little;
     final tiffOut = BytesBuilder();
     if (outEndian == Endian.little) {
       tiffOut.add([0x49, 0x49, 0x2A, 0x00]);
