@@ -19,6 +19,7 @@ import 'core/app_lifecycle.dart';
 import 'core/theme.dart';
 import 'features/gallery/gallery_page.dart';
 import 'features/home/home_page.dart';
+import 'features/preview/preview_page.dart';
 import 'features/result/result_page.dart';
 import 'features/settings/settings_page.dart';
 import 'features/splash/splash_page.dart';
@@ -131,6 +132,8 @@ class _LivebackAppState extends State<LivebackApp>
       '/settings' => const SettingsPage(),
       '/test-mode' => const TestModePage(),
       '/result' => ResultPage(taskId: settings.arguments as String? ?? ''),
+      '/preview' =>
+        PreviewPage(args: settings.arguments as PreviewPageArgs),
       _ => null,
     };
     if (widget == null) return null;
