@@ -1,9 +1,9 @@
 // Owner: T3 (UI teammate). Reference: Doc 1 §1 directory layout.
 //
-// Minimal bootstrap. The real bring-up (TaskQueue.init(),
-// NotificationService.init(), SharedPreferences warm-up) belongs inside
-// LivebackApp.initState so we can surface init failures in the first
-// frame. Keeping main.dart bare avoids duplicating that logic here.
+// Minimal bootstrap. Heavy init (TaskQueue.instance.init() +
+// NotificationService().init()) runs inside LivebackApp.initState so any
+// failure can surface in the first frame without crashing the Dart VM at
+// entry.
 
 import 'package:flutter/widgets.dart';
 
@@ -11,7 +11,5 @@ import 'app.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
-  // TODO(T3): bootstrap TaskQueue.instance.init() + NotificationService.init()
-  //           inside LivebackApp.initState; surface errors in the first frame.
   runApp(const LivebackApp());
 }
