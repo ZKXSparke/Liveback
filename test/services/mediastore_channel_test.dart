@@ -31,6 +31,26 @@ void main() {
   });
 
   group('queryImages', () {
+    test('omits bucketId arg when null (preserves Doc 1 §A.6 surface)', () async {
+      handle((call) async {
+        expect(call.method, 'queryImages');
+        final args = (call.arguments as Map).cast<String, dynamic>();
+        expect(args.containsKey('bucketId'), isFalse);
+        return const <Map<String, dynamic>>[];
+      });
+      await MediaStoreChannel().queryImages();
+    });
+
+    test('forwards bucketId when supplied', () async {
+      handle((call) async {
+        expect(call.method, 'queryImages');
+        final args = (call.arguments as Map).cast<String, dynamic>();
+        expect(args['bucketId'], 123456789);
+        return const <Map<String, dynamic>>[];
+      });
+      await MediaStoreChannel().queryImages(bucketId: 123456789);
+    });
+
     test('parses rows with full + partial projection', () async {
       handle((call) async {
         expect(call.method, 'queryImages');
@@ -86,6 +106,58 @@ void main() {
       expect(
         () => MediaStoreChannel().queryImages(),
         throwsA(isA<SefWriteFailedException>()),
+      );
+    });
+  });
+
+  group('queryAlbums', () {
+    test('parses bucket rows', () async {
+      handle((call) async {
+        expect(call.method, 'queryAlbums');
+        return <Map<String, dynamic>>[
+          {
+            'bucketId': 111,
+            'displayName': 'Camera',
+            'coverContentUri': 'content://media/external/images/media/1001',
+            'count': 42,
+          },
+          {
+            'bucketId': 222,
+            'displayName': 'Screenshots',
+            'coverContentUri': 'content://media/external/images/media/1002',
+            'count': 9,
+          },
+        ];
+      });
+      final albums = await MediaStoreChannel().queryAlbums();
+      expect(albums, hasLength(2));
+      expect(albums[0].displayName, 'Camera');
+      expect(albums[0].bucketId, 111);
+      expect(albums[0].count, 42);
+      expect(albums[1].bucketId, 222);
+    });
+
+    test('null displayName falls back to "(未命名)"', () async {
+      handle((call) async => <Map<String, dynamic>>[
+            {
+              'bucketId': 333,
+              'displayName': null,
+              'coverContentUri': 'content://media/external/images/media/9',
+              'count': 1,
+            }
+          ]);
+      final albums = await MediaStoreChannel().queryAlbums();
+      expect(albums, hasLength(1));
+      expect(albums[0].displayName, '(未命名)');
+    });
+
+    test('PERMISSION_DENIED maps to PermissionDeniedException', () async {
+      handle((call) async {
+        throw PlatformException(code: 'PERMISSION_DENIED');
+      });
+      expect(
+        () => MediaStoreChannel().queryAlbums(),
+        throwsA(isA<PermissionDeniedException>()),
       );
     });
   });
