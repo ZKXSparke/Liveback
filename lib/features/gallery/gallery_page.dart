@@ -21,7 +21,6 @@
 // filter is counted (+N indicator in the header) but not rendered.
 
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
