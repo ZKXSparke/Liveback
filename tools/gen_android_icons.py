@@ -96,39 +96,30 @@ def crop_transparent(img: Image.Image) -> Image.Image:
 
 
 def render_foreground(master: Image.Image, px: int, safe_px: int) -> Image.Image:
-    """Render the 108dp foreground canvas at ``px`` pixels per side.
+    """Render the 108dp adaptive-icon foreground canvas at ``px`` pixels.
 
-    The master wordmark is tight-cropped, then scaled to fit inside a
-    ``safe_px``-edge square centered on the canvas. Everything outside is
-    transparent.
+    The master is a fully-rendered icon (opaque #0B1013 bg + grid + wordmark
+    baked in). Resize it straight to fill the full canvas — no letterbox,
+    no safe-area inset. Launcher masks (circle/squircle) will crop the
+    outer corners at draw time; the wordmark lives in the central ~60% of
+    the source so it stays visible under every mask shape.
+
+    The ``safe_px`` argument is kept for signature stability but unused.
     """
-    canvas = Image.new("RGBA", (px, px), (0, 0, 0, 0))
-
+    del safe_px  # intentionally unused — source already composed inside safe zone
     rgba = master.convert("RGBA")
-    cropped = crop_transparent(rgba)
-    cw, ch = cropped.size
-    # Scale to fit inside safe_px x safe_px while preserving aspect ratio.
-    scale = min(safe_px / cw, safe_px / ch)
-    tw, th = max(1, int(round(cw * scale))), max(1, int(round(ch * scale)))
-    scaled = cropped.resize((tw, th), Image.Resampling.LANCZOS)
-
-    ox = (px - tw) // 2
-    oy = (px - th) // 2
-    canvas.paste(scaled, (ox, oy), scaled)
-    return canvas
+    return rgba.resize((px, px), Image.Resampling.LANCZOS)
 
 
 def render_legacy(master: Image.Image, px: int, bg: Tuple[int, int, int, int]) -> Image.Image:
-    """Composite background + foreground at ``px`` pixels. Used for
-    mipmap-*/ic_launcher.png (pre-API 26 fallback)."""
-    canvas = Image.new("RGBA", (px, px), bg)
-    # Safe area in legacy icon is not masked; use the full 48dp but inset
-    # the wordmark by a proportional margin (~20%) so it doesn't kiss the
-    # edge on round masks. 48dp * 0.6 = ~29px at mdpi.
-    safe_px = int(round(px * (SAFE_DP / CANVAS_DP)))
-    fg = render_foreground(master, px, safe_px)
-    canvas.alpha_composite(fg)
-    return canvas.convert("RGBA")
+    """Straight resize for mipmap-*/ic_launcher.png (pre-API 26 fallback).
+
+    Source is already fully composed; no background compositing needed.
+    ``bg`` is kept for signature stability but unused (source is opaque).
+    """
+    del bg  # intentionally unused — source is opaque
+    rgba = master.convert("RGBA")
+    return rgba.resize((px, px), Image.Resampling.LANCZOS)
 
 
 def main() -> int:
