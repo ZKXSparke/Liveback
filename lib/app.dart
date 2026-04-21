@@ -1,17 +1,29 @@
 // Owner: T3 (UI teammate). Reference: Doc 1 §A.8 wire-up + §5.2 routes.
 //
-// LivebackApp is the MaterialApp root. Two production-ready responsibilities
-// are already wired here:
+// LivebackApp is the MaterialApp root. Responsibilities:
 //   1. WidgetsBindingObserver that forwards AppLifecycleState into
-//      AppLifecycle.updateState (Doc 1 §A.8 — NotificationService reads it).
-//   2. ThemeData.light/dark from LivebackTheme (brand §3).
-// Route widgets themselves are Placeholder stubs — T3 replaces each with
-// the real page widget.
+//      AppLifecycle.updateState (Doc 1 §A.8 — NotificationService reads
+//      it to decide whether to suppress post-batch notifications).
+//   2. Ambient services bootstrap (TaskQueue + NotificationService). Any
+//      init failure surfaces in the first frame as a small error banner
+//      rather than a crash at main().
+//   3. ThemeData.light/dark from LivebackTheme (brand §3).
+//   4. Route table per Doc 1 §5.2.
+
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 
 import 'core/app_lifecycle.dart';
 import 'core/theme.dart';
+import 'features/gallery/gallery_page.dart';
+import 'features/home/home_page.dart';
+import 'features/result/result_page.dart';
+import 'features/settings/settings_page.dart';
+import 'features/tasks/task_list_page.dart';
+import 'features/test_mode/test_mode_page.dart';
+import 'services/notification_service.dart';
+import 'services/task_queue.dart';
 
 class LivebackApp extends StatefulWidget {
   const LivebackApp({super.key});
@@ -22,6 +34,8 @@ class LivebackApp extends StatefulWidget {
 
 class _LivebackAppState extends State<LivebackApp>
     with WidgetsBindingObserver {
+  String? _bootstrapError;
+
   @override
   void initState() {
     super.initState();
@@ -32,11 +46,29 @@ class _LivebackAppState extends State<LivebackApp>
     AppLifecycle.updateState(
       WidgetsBinding.instance.lifecycleState ?? AppLifecycleState.resumed,
     );
+    unawaited(_bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    try {
+      await TaskQueue.instance.init();
+    } catch (e, st) {
+      debugPrint('LivebackApp: TaskQueue init failed: $e\n$st');
+      if (!mounted) return;
+      setState(() => _bootstrapError = 'TaskQueue init failed: $e');
+    }
+    try {
+      await NotificationService().init();
+    } catch (e) {
+      // Notification init failure is non-fatal. Log and carry on.
+      debugPrint('LivebackApp: NotificationService init skipped: $e');
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(TaskQueue.instance.dispose());
     super.dispose();
   }
 
@@ -53,17 +85,76 @@ class _LivebackAppState extends State<LivebackApp>
       debugShowCheckedModeBanner: false,
       theme: LivebackTheme.light(),
       darkTheme: LivebackTheme.dark(),
+      themeMode: ThemeMode.system,
       initialRoute: '/',
-      // Doc 1 §5.2 — 6 named routes. T3 replaces each Placeholder with
-      // the real page widget as features are built.
-      routes: {
-        '/':          (_) => const Placeholder(),  // HomePage
-        '/gallery':   (_) => const Placeholder(),  // GalleryPage
-        '/tasks':     (_) => const Placeholder(),  // TaskListPage
-        '/result':    (_) => const Placeholder(),  // ResultPage
-        '/settings':  (_) => const Placeholder(),  // SettingsPage
-        '/test-mode': (_) => const Placeholder(),  // TestModePage
+      onGenerateRoute: _onGenerateRoute,
+      builder: (ctx, child) {
+        if (_bootstrapError != null) {
+          return _BootstrapErrorBanner(
+            message: _bootstrapError!,
+            child: child ?? const SizedBox.shrink(),
+          );
+        }
+        return child ?? const SizedBox.shrink();
       },
+    );
+  }
+
+  Route<Object?>? _onGenerateRoute(RouteSettings settings) {
+    final widget = switch (settings.name) {
+      '/' => const HomePage(),
+      '/gallery' => const GalleryPage(),
+      '/tasks' => const TaskListPage(),
+      '/settings' => const SettingsPage(),
+      '/test-mode' => const TestModePage(),
+      '/result' => ResultPage(taskId: settings.arguments as String? ?? ''),
+      _ => null,
+    };
+    if (widget == null) return null;
+    return MaterialPageRoute<Object?>(
+      settings: settings,
+      builder: (_) => widget,
+    );
+  }
+}
+
+class _BootstrapErrorBanner extends StatelessWidget {
+  final String message;
+  final Widget child;
+  const _BootstrapErrorBanner({
+    required this.message,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        Positioned(
+          left: 0,
+          right: 0,
+          top: MediaQuery.paddingOf(context).top,
+          child: Material(
+            color: const Color(0xFFE11D74),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 6,
+              ),
+              child: Text(
+                message,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
