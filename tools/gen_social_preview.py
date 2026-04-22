@@ -50,13 +50,25 @@ def load_font(size: int, bold: bool = False, cjk: bool = False) -> ImageFont.Ima
     return ImageFont.load_default()
 
 
-def draw_grid(draw: ImageDraw.ImageDraw, step: int = 40, alpha: int = 18) -> None:
-    """Subtle editorial grid overlay."""
-    grid_color = (*CREAM[:3], alpha)
-    for x in range(0, W + 1, step):
-        draw.line([(x, 0), (x, H)], fill=grid_color, width=1)
-    for y in range(0, H + 1, step):
-        draw.line([(0, y), (W, y)], fill=grid_color, width=1)
+def draw_corner_hairlines(draw: ImageDraw.ImageDraw) -> None:
+    """Editorial hairline accents at the four corners — tiny registration
+    marks suggesting a print layout. Stays out of the text zone."""
+    hair = (*CREAM[:3], 32)
+    # 40-px L-marks inset 40 px from each corner, very faint.
+    for (ox, oy, dx1, dy1, dx2, dy2) in [
+        (40, 40,  0,  0,  40,  0),    # TL horizontal
+        (40, 40,  0,  0,   0, 40),    # TL vertical
+        (W - 40, 40, -40,  0,   0,  0),
+        (W - 40, 40,   0,  0,   0, 40),
+        (40, H - 40,  0,   0,  40,  0),
+        (40, H - 40,  0, -40,   0,  0),
+        (W - 40, H - 40, -40, 0, 0, 0),
+        (W - 40, H - 40,   0,-40, 0, 0),
+    ]:
+        draw.line(
+            [(ox + dx1, oy + dy1), (ox + dx2, oy + dy2)],
+            fill=hair, width=1,
+        )
 
 
 def draw_chromatic_corner(img: Image.Image) -> None:
@@ -93,57 +105,117 @@ def paste_phone(
     cx: int,
     cy: int,
 ) -> None:
-    """Paste a phone-framed screenshot. We rescale to `target_h` tall
-    (preserving aspect) and add a subtle cream border + outer glow."""
+    """Render a Samsung Galaxy S26 Ultra-style mockup wrapping the screenshot.
+
+    Design cues:
+      - Near-rectangular silhouette with a small corner radius (S25/S26 Ultra).
+      - Thin titanium/charcoal frame, subtle inner bezel.
+      - Center punch-hole camera dot near the top.
+      - Thin power + volume buttons on the right edge.
+      - Cyan/magenta double-glow aura behind the device (brand §2 chroma).
+    """
     src = Image.open(screenshot).convert("RGBA")
     sw, sh = src.size
-    target_w = int(sw * (target_h / sh))
-    src = src.resize((target_w, target_h), Image.Resampling.LANCZOS)
+    screen_w = int(sw * (target_h / sh))
+    screen_h = target_h
 
-    frame = Image.new("RGBA", (target_w + 12, target_h + 12), (0, 0, 0, 0))
-    fd = ImageDraw.Draw(frame)
-    # Outer thin cream border (bezel).
-    fd.rounded_rectangle(
-        (0, 0, target_w + 11, target_h + 11),
-        radius=38,
-        outline=(*CREAM[:3], 100),
-        width=3,
+    # Phone outer dimensions (frame + bezel around screen).
+    frame_pad = 7         # titanium outer frame thickness
+    bezel_pad = 3         # inner black bezel
+    phone_w = screen_w + 2 * (frame_pad + bezel_pad)
+    phone_h = screen_h + 2 * (frame_pad + bezel_pad)
+    phone_r = 38          # S26 Ultra has a modest corner radius, flatter than S23
+    screen_r = phone_r - (frame_pad + bezel_pad) + 2
+
+    phone = Image.new("RGBA", (phone_w, phone_h), (0, 0, 0, 0))
+    pd = ImageDraw.Draw(phone)
+
+    # Outer titanium frame (dark charcoal gradient approximation).
+    titanium = (34, 36, 40, 255)
+    pd.rounded_rectangle((0, 0, phone_w - 1, phone_h - 1), radius=phone_r, fill=titanium)
+
+    # Thin highlight line along the top edge — suggests brushed metal.
+    hi = (70, 72, 76, 255)
+    pd.rounded_rectangle(
+        (1, 1, phone_w - 2, 2),
+        radius=phone_r,
+        outline=hi,
+        width=1,
     )
 
-    # Clip the screenshot itself into the inner rounded rect.
-    mask = Image.new("L", (target_w, target_h), 0)
+    # Inner bezel (matte black).
+    inset = frame_pad
+    pd.rounded_rectangle(
+        (inset, inset, phone_w - inset - 1, phone_h - inset - 1),
+        radius=phone_r - frame_pad,
+        fill=(6, 7, 9, 255),
+    )
+
+    # Screen area: paste the screenshot clipped to rounded rect.
+    screen_inset = frame_pad + bezel_pad
+    mask = Image.new("L", (screen_w, screen_h), 0)
     ImageDraw.Draw(mask).rounded_rectangle(
-        (0, 0, target_w, target_h), radius=32, fill=255
+        (0, 0, screen_w, screen_h), radius=screen_r, fill=255
     )
-    frame.paste(src, (6, 6), mask)
+    screen = src.resize((screen_w, screen_h), Image.Resampling.LANCZOS)
+    phone.paste(screen, (screen_inset, screen_inset), mask)
 
-    # Outer glow (cyan+magenta drop-shadow in brand style).
-    glow = Image.new("RGBA", (target_w + 80, target_h + 80), (0, 0, 0, 0))
+    # Punch-hole front camera — center, ~28 px above top of screen area at this scale.
+    cam_cx = phone_w // 2
+    cam_cy = screen_inset + 30
+    pd.ellipse(
+        (cam_cx - 7, cam_cy - 7, cam_cx + 7, cam_cy + 7),
+        fill=(0, 0, 0, 255),
+        outline=(22, 22, 24, 255),
+    )
+    # Tiny specular highlight on the lens.
+    pd.ellipse(
+        (cam_cx - 3, cam_cy - 4, cam_cx, cam_cy - 1),
+        fill=(60, 62, 68, 255),
+    )
+
+    # Side buttons on the right edge: one thin power, one volume rocker.
+    btn_x = phone_w - 2
+    # Volume (upper) — one tall thin bar
+    pd.rectangle(
+        (btn_x, phone_h // 2 - 70, btn_x + 2, phone_h // 2 - 10),
+        fill=(50, 52, 58, 255),
+    )
+    # Power (lower)
+    pd.rectangle(
+        (btn_x, phone_h // 2 + 20, btn_x + 2, phone_h // 2 + 70),
+        fill=(50, 52, 58, 255),
+    )
+
+    # Double-glow aura behind the phone (cyan + magenta brand chroma).
+    pad = 60
+    glow = Image.new("RGBA", (phone_w + 2 * pad, phone_h + 2 * pad), (0, 0, 0, 0))
     gd = ImageDraw.Draw(glow)
+    # Cyan ring (slight left shift)
     gd.rounded_rectangle(
-        (40, 40, 40 + target_w + 11, 40 + target_h + 11),
-        radius=38,
-        fill=(*CYAN[:3], 16),
+        (pad - 4, pad, pad - 4 + phone_w, pad + phone_h),
+        radius=phone_r + 6,
+        fill=(*CYAN[:3], 18),
     )
-    # Shift + magenta overlay for the RGB-split hint.
-    mag = Image.new("RGBA", glow.size, (0, 0, 0, 0))
-    ImageDraw.Draw(mag).rounded_rectangle(
-        (44, 40, 44 + target_w + 11, 40 + target_h + 11),
-        radius=38,
-        fill=(*MAGENTA[:3], 16),
+    # Magenta ring (slight right shift)
+    mag_layer = Image.new("RGBA", glow.size, (0, 0, 0, 0))
+    ImageDraw.Draw(mag_layer).rounded_rectangle(
+        (pad + 4, pad, pad + 4 + phone_w, pad + phone_h),
+        radius=phone_r + 6,
+        fill=(*MAGENTA[:3], 18),
     )
-    glow.alpha_composite(mag)
+    glow.alpha_composite(mag_layer)
 
-    ox = cx - (target_w + 80) // 2
-    oy = cy - (target_h + 80) // 2
+    ox = cx - (phone_w + 2 * pad) // 2
+    oy = cy - (phone_h + 2 * pad) // 2
     canvas.alpha_composite(glow, (ox, oy))
-    canvas.alpha_composite(frame, (ox + 40, oy + 40))
+    canvas.alpha_composite(phone, (ox + pad, oy + pad))
 
 
 def main() -> int:
     repo = Path(__file__).resolve().parent.parent
     icon = repo / "assets" / "branding" / "app-icon.png"
-    screenshot = repo / "docs" / "screenshots" / "gallery.png"
+    screenshot = repo / "docs" / "screenshots" / "home.png"
     out = repo / "docs" / "social-preview.png"
 
     if not icon.is_file():
@@ -156,8 +228,8 @@ def main() -> int:
     canvas = Image.new("RGBA", (W, H), BG)
     draw = ImageDraw.Draw(canvas, "RGBA")
 
-    # Subtle grid + corner brackets (editorial decorations).
-    draw_grid(draw)
+    # Editorial corner accents only — no full-screen grid (hurts legibility).
+    draw_corner_hairlines(draw)
     draw_chromatic_corner(canvas)
 
     # Left block: app icon.
