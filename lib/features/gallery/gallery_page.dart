@@ -48,6 +48,11 @@ enum _GalleryFilter {
   needsFix,
 }
 
+/// Exposes the page's default filter name so widget tests can pin the
+/// first-launch behaviour without poking private state.
+@visibleForTesting
+const String debugGalleryDefaultFilterName = 'motionOnly';
+
 /// Pure filter predicate exercised by unit tests via `debugGalleryTilePasses`.
 /// Tiles with unresolved probes (`probe == null`) always pass so that
 /// scrolling doesn't flicker them in and out while probes resolve.
@@ -116,8 +121,11 @@ class _GalleryPageState extends State<GalleryPage> {
   int? _selectedBucketId; // null ⇒ "all albums"
   String? _selectedBucketLabel; // cached for header render
 
-  // Motion-Photo filter chip state.
-  _GalleryFilter _filter = _GalleryFilter.all;
+  // Motion-Photo filter chip state. Default is "仅显示实况图" so first-run
+  // users land on a curated grid of Motion Photos rather than every JPEG
+  // in the album — matches the app's primary job-to-be-done (find and
+  // fix live photos). The chip bar still exposes 全部 / 待修复 as toggles.
+  _GalleryFilter _filter = _GalleryFilter.motionOnly;
 
   // Gesture state machine (§11). Indices are into the CURRENTLY VISIBLE
   // list — gestures only target visible tiles; filtered-out rows are not
