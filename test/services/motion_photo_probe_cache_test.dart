@@ -9,7 +9,6 @@ import 'dart:async';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liveback/exceptions/liveback_exceptions.dart';
 import 'package:liveback/services/mediastore_channel.dart';
-import 'package:liveback/services/motion_photo_probe.dart';
 import 'package:liveback/services/motion_photo_probe_cache.dart';
 
 void main() {
