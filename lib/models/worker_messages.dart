@@ -160,19 +160,21 @@ class FixResultSummary {
 /// Worker-side serializable error. The raw Dart exception is NOT sent
 /// across the port (SDK does not guarantee all Exception subclasses
 /// survive structured clone — Doc 1 §4.7).
+///
+/// i18n refactor: [message] is gone. UI layers render localized copy via
+/// `context.l10n.errorMessageFor(errorCode)`; [technicalDetails] stays as
+/// an optional English diagnostic surfaced only in the debug build's
+/// ErrorDialog chip.
 class FixError {
   /// One of the `ErrorCodes.*` constants.
   final String errorCode;
 
-  /// User-facing zh-CN message (v1.1 §5.8 + brand §6).
-  final String message;
-
   /// Optional technical detail (stack trace tail, root cause string).
+  /// Intentionally NOT localized — developer-diagnostic only.
   final String? technicalDetails;
 
   const FixError({
     required this.errorCode,
-    required this.message,
     this.technicalDetails,
   });
 }
