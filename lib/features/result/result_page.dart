@@ -89,7 +89,7 @@ class _ResultPageState extends State<ResultPage> {
                   color: config.color,
                 ),
                 alignment: Alignment.center,
-                child: Icon(config.icon, color: Colors.white, size: 22),
+                child: Icon(config.icon, color: c.bg, size: 22),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -277,7 +277,7 @@ class _ResultPageState extends State<ResultPage> {
               onPressed: () => _shareSingle(context, task),
               style: ElevatedButton.styleFrom(
                 backgroundColor: c.accent,
-                foregroundColor: Colors.white,
+                foregroundColor: c.bg,
                 elevation: 0,
                 padding: const EdgeInsets.symmetric(vertical: 13),
                 shape: RoundedRectangleBorder(

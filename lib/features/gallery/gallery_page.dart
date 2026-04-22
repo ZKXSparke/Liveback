@@ -745,7 +745,7 @@ class _GalleryPageState extends State<GalleryPage> {
             onPressed: _confirm,
             style: ElevatedButton.styleFrom(
               backgroundColor: c.accent,
-              foregroundColor: Colors.white,
+              foregroundColor: c.bg,
               elevation: 0,
               padding:
                   const EdgeInsets.symmetric(horizontal: 18, vertical: 10),
@@ -780,7 +780,7 @@ class _GalleryPageState extends State<GalleryPage> {
               onPressed: _loadMore,
               style: ElevatedButton.styleFrom(
                 backgroundColor: c.accent,
-                foregroundColor: Colors.white,
+                foregroundColor: c.bg,
               ),
               child: const Text('重试'),
             ),
@@ -818,7 +818,7 @@ class _FilterChip extends StatelessWidget {
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w500,
-              color: selected ? Colors.white : c.inkDim,
+              color: selected ? c.bg : c.inkDim,
               letterSpacing: 0.1,
             ),
           ),
@@ -1263,7 +1263,7 @@ class _Checkmark extends StatelessWidget {
             : Border.all(color: const Color(0xD9FFFFFF), width: 1.5),
       ),
       child: selected
-          ? const Icon(Icons.check, color: Colors.white, size: 12)
+          ? Icon(Icons.check, color: c.bg, size: 12)
           : const SizedBox.shrink(),
     );
   }

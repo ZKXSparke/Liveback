@@ -17,6 +17,7 @@ import 'package:flutter/services.dart';
 
 import 'core/app_lifecycle.dart';
 import 'core/theme.dart';
+import 'core/theme_mode_controller.dart';
 import 'features/gallery/gallery_page.dart';
 import 'features/home/home_page.dart';
 import 'features/preview/preview_page.dart';
@@ -53,6 +54,10 @@ class _LivebackAppState extends State<LivebackApp>
   }
 
   Future<void> _bootstrap() async {
+    // Load persisted theme-mode choice first so the first frame's theme
+    // matches the user's last selection (avoids a system → user-preferred
+    // flicker on cold launch).
+    await ThemeModeController.instance.load();
     try {
       await TaskQueue.instance.init();
     } catch (e, st) {
@@ -83,12 +88,14 @@ class _LivebackAppState extends State<LivebackApp>
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return ValueListenableBuilder<ThemeMode>(
+      valueListenable: ThemeModeController.instance.mode,
+      builder: (_, mode, __) => MaterialApp(
       title: 'Liveback',
       debugShowCheckedModeBanner: false,
       theme: LivebackTheme.light(),
       darkTheme: LivebackTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: mode,
       initialRoute: '/',
       onGenerateRoute: _onGenerateRoute,
       builder: (ctx, child) {
@@ -120,6 +127,7 @@ class _LivebackAppState extends State<LivebackApp>
           child: body,
         );
       },
+    ),
     );
   }
 

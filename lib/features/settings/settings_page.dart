@@ -9,6 +9,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/theme_mode_controller.dart';
 import '../../widgets/dialog/confirm_dialog.dart';
 import '../../widgets/dialog/error_dialog.dart';
 import '../../widgets/dialog/info_dialog.dart';
@@ -96,6 +97,20 @@ class _SettingsPageState extends State<SettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _masthead(context),
+                    _Section(
+                      title: '外观',
+                      children: [
+                        ValueListenableBuilder<ThemeMode>(
+                          valueListenable:
+                              ThemeModeController.instance.mode,
+                          builder: (_, mode, __) => _ThemeModePicker(
+                            current: mode,
+                            onChange: (m) =>
+                                ThemeModeController.instance.setMode(m),
+                          ),
+                        ),
+                      ],
+                    ),
                     _Section(
                       title: '通知',
                       children: [
@@ -453,6 +468,114 @@ class _Toggle extends StatelessWidget {
                     ),
                   ],
                 ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ThemeModePicker extends StatelessWidget {
+  final ThemeMode current;
+  final ValueChanged<ThemeMode> onChange;
+
+  const _ThemeModePicker({required this.current, required this.onChange});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    const options = <(ThemeMode, String, IconData)>[
+      (ThemeMode.system, '跟随系统', Icons.brightness_auto_outlined),
+      (ThemeMode.light, '浅色', Icons.light_mode_outlined),
+      (ThemeMode.dark, '深色', Icons.dark_mode_outlined),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '主题',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: c.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '默认跟随系统切换深浅色；可强制固定其中一种',
+            style: TextStyle(fontSize: 12, color: c.inkDim, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              for (final (mode, label, icon) in options) ...[
+                Expanded(
+                  child: _ThemeOptionChip(
+                    label: label,
+                    icon: icon,
+                    selected: current == mode,
+                    onTap: () => onChange(mode),
+                  ),
+                ),
+                if (mode != options.last.$1) const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ThemeOptionChip extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _ThemeOptionChip({
+    required this.label,
+    required this.icon,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 140),
+        curve: Curves.easeOut,
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? c.accentSoft : Colors.transparent,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: selected ? c.accent : c.border,
+            width: selected ? 1.4 : 1.0,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 22,
+              color: selected ? c.accent : c.inkDim,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+                color: selected ? c.ink : c.inkDim,
               ),
             ),
           ],

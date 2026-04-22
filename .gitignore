@@ -61,3 +61,7 @@ macos/
 web/
 windows/
 linux/
+
+# test samples — do not commit
+20260420_140350.jpg
+dji_export_photo_*.jpg
