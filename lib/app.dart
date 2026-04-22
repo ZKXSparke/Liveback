@@ -21,6 +21,7 @@ import 'core/locale_controller.dart';
 import 'core/theme.dart';
 import 'core/theme_mode_controller.dart';
 import 'l10n/generated/app_localizations.dart';
+import 'l10n/l10n_ext.dart';
 import 'features/gallery/gallery_page.dart';
 import 'features/home/home_page.dart';
 import 'features/preview/preview_page.dart';
@@ -69,7 +70,8 @@ class _LivebackAppState extends State<LivebackApp>
     } catch (e, st) {
       debugPrint('LivebackApp: TaskQueue init failed: $e\n$st');
       if (!mounted) return;
-      setState(() => _bootstrapError = 'TaskQueue init failed: $e');
+      // Banner picks up the localized template via bootstrapTaskQueueFailed.
+      setState(() => _bootstrapError = '$e');
     }
     try {
       await NotificationService().init();
@@ -195,6 +197,12 @@ class _BootstrapErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // bootstrap error may run before AppL10n is available if the banner is
+    // mounted very early; guard the lookup and fall back to the raw
+    // (English-prefixed) diagnostic.
+    final l = AppL10n.of(context);
+    final display =
+        l != null ? l.bootstrapTaskQueueFailed(message) : 'TaskQueue init failed: $message';
     return Stack(
       children: [
         child,
@@ -210,7 +218,7 @@ class _BootstrapErrorBanner extends StatelessWidget {
                 vertical: 6,
               ),
               child: Text(
-                message,
+                display,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(

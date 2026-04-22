@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n_ext.dart';
 import '../services/task_queue.dart';
 import 'mono_text.dart';
 import 'theme_access.dart';
@@ -25,7 +26,7 @@ class FixedCounter extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             MonoText(
-              'FIXED',
+              context.l10n.fixedCounterLabel,
               style: TextStyle(
                 fontSize: 10,
                 color: c.inkFaint,

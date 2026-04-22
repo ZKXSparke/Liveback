@@ -26,6 +26,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
 
+import '../../l10n/l10n_ext.dart';
 import '../../models/gallery_album.dart';
 import '../../models/gallery_item.dart';
 import '../../services/mediastore_channel.dart';
@@ -631,8 +632,8 @@ class _GalleryPageState extends State<GalleryPage> {
                 padding: const EdgeInsets.all(12),
                 child: MonoText(
                   _filter == _GalleryFilter.all
-                      ? '没有更多图片了'
-                      : '没有更多符合条件的图片',
+                      ? context.l10n.galleryNoMore
+                      : context.l10n.galleryNoMoreFiltered,
                   style: TextStyle(
                     fontSize: 11,
                     color: context.colors.inkFaint,
@@ -666,13 +667,15 @@ class _GalleryPageState extends State<GalleryPage> {
 
   Widget _header(BuildContext context, int n) {
     final c = context.colors;
-    final bucketLabel = _selectedBucketLabel ?? '全部相册';
+    final l = context.l10n;
+    final bucketLabel =
+        _selectedBucketLabel ?? l.galleryTitleAllAlbums;
     final visible = _visibleItems();
     final hiddenSelected = n -
         _selectedIds.where((id) => visible.any((it) => it.id == id)).length;
     final selectionLabel = hiddenSelected > 0
-        ? '$n/$_kMaxSelection · +$hiddenSelected 张已选但隐藏'
-        : '$n/$_kMaxSelection';
+        ? l.gallerySelectionHidden(n, _kMaxSelection, hiddenSelected)
+        : l.gallerySelectionRatio(n, _kMaxSelection);
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 6, 10, 2),
       child: Row(
@@ -694,7 +697,9 @@ class _GalleryPageState extends State<GalleryPage> {
                   children: [
                     Flexible(
                       child: Text(
-                        _permissionGranted ? bucketLabel : '选择实况图',
+                        _permissionGranted
+                            ? bucketLabel
+                            : l.galleryTitleSelect,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 17,
@@ -721,7 +726,7 @@ class _GalleryPageState extends State<GalleryPage> {
               disabledForegroundColor: c.inkFaint,
             ),
             child: Text(
-              '完成 · $selectionLabel',
+              l.galleryDoneButton(selectionLabel),
               style:
                   const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
             ),
@@ -733,24 +738,25 @@ class _GalleryPageState extends State<GalleryPage> {
 
   Widget _filterBar(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(12, 2, 12, 8),
       child: Row(
         children: [
           _FilterChip(
-            label: '全部',
+            label: l.filterAll,
             selected: _filter == _GalleryFilter.all,
             onTap: () => _onSelectFilter(_GalleryFilter.all),
           ),
           const SizedBox(width: 6),
           _FilterChip(
-            label: '仅显示实况图',
+            label: l.filterMotionOnly,
             selected: _filter == _GalleryFilter.motionOnly,
             onTap: () => _onSelectFilter(_GalleryFilter.motionOnly),
           ),
           const SizedBox(width: 6),
           _FilterChip(
-            label: '待修复',
+            label: l.filterNeedsFix,
             selected: _filter == _GalleryFilter.needsFix,
             onTap: () => _onSelectFilter(_GalleryFilter.needsFix),
           ),
@@ -788,6 +794,7 @@ class _GalleryPageState extends State<GalleryPage> {
 
   Widget _confirmBar(BuildContext context, int n) {
     final c = context.colors;
+    final l = context.l10n;
     return Container(
       padding: const EdgeInsets.fromLTRB(18, 12, 18, 16),
       decoration: BoxDecoration(
@@ -798,7 +805,7 @@ class _GalleryPageState extends State<GalleryPage> {
         children: [
           Expanded(
             child: Text(
-              '$n 张实况图 · 开始修复',
+              l.confirmBarStart(n),
               style: TextStyle(fontSize: 14, color: c.ink),
             ),
           ),
@@ -813,7 +820,7 @@ class _GalleryPageState extends State<GalleryPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('取消'),
+            child: Text(l.cancel),
           ),
           const SizedBox(width: 10),
           ElevatedButton(
@@ -828,7 +835,7 @@ class _GalleryPageState extends State<GalleryPage> {
                 borderRadius: BorderRadius.circular(12),
               ),
             ),
-            child: const Text('开始修复'),
+            child: Text(l.startFix),
           ),
         ],
       ),
@@ -837,6 +844,7 @@ class _GalleryPageState extends State<GalleryPage> {
 
   Widget _errorState() {
     final c = context.colors;
+    final l = context.l10n;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(22),
@@ -846,7 +854,7 @@ class _GalleryPageState extends State<GalleryPage> {
             Icon(Icons.folder_open_outlined, size: 36, color: c.inkDim),
             const SizedBox(height: 12),
             MonoText(
-              '图库读取失败\n$_loadError',
+              l.galleryReadError(_loadError ?? ''),
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: c.inkDim),
             ),
@@ -857,7 +865,7 @@ class _GalleryPageState extends State<GalleryPage> {
                 backgroundColor: c.accent,
                 foregroundColor: c.bg,
               ),
-              child: const Text('重试'),
+              child: Text(l.retry),
             ),
           ],
         ),
@@ -943,7 +951,7 @@ class _AlbumPickerSheet extends StatelessWidget {
               ),
             ),
             Text(
-              '选择相册',
+              context.l10n.albumPickerTitle,
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.w600,
@@ -962,6 +970,7 @@ class _AlbumPickerSheet extends StatelessWidget {
 
   Widget _body(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     if (loading && albums.isEmpty) {
       return const Center(
         child: SizedBox(
@@ -974,7 +983,7 @@ class _AlbumPickerSheet extends StatelessWidget {
     if (albums.isEmpty) {
       return Center(
         child: MonoText(
-          '图库里没有相册',
+          l.albumPickerEmpty,
           style: TextStyle(fontSize: 12, color: c.inkDim),
         ),
       );
@@ -990,7 +999,7 @@ class _AlbumPickerSheet extends StatelessWidget {
           final allSelected = selectedBucketId == null;
           return _AlbumRow(
             album: null,
-            label: '全部相册',
+            label: l.albumPickerAllAlbums,
             subtitle: null,
             selected: allSelected,
             onTap: () =>
@@ -1002,7 +1011,7 @@ class _AlbumPickerSheet extends StatelessWidget {
         return _AlbumRow(
           album: album,
           label: album.displayName,
-          subtitle: '${album.count} 张',
+          subtitle: l.albumPickerCount(album.count),
           selected: selected,
           onTap: () => Navigator.of(ctx).pop(_AlbumPickerResult(album)),
         );
@@ -1358,9 +1367,10 @@ class _MotionBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     final isNative = probe.isSamsungNative;
     final dotColor = isNative ? c.success : c.warn;
-    final label = isNative ? '已是三星' : '待修复';
+    final label = isNative ? l.badgeAlreadySamsung : l.badgeNeedsFix;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
       decoration: BoxDecoration(
@@ -1428,6 +1438,7 @@ class _EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
@@ -1437,7 +1448,7 @@ class _EmptyState extends StatelessWidget {
             Icon(Icons.collections_outlined, size: 44, color: c.inkFaint),
             const SizedBox(height: 16),
             Text(
-              '图库里没有图片',
+              l.galleryEmptyTitle,
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
@@ -1447,7 +1458,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '拍摄实况图或从相册导入后再来',
+              l.galleryEmptyBody,
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 13, color: c.inkDim, height: 1.4),
             ),
@@ -1468,10 +1479,11 @@ class _FilteredEmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     final label = switch (filter) {
-      _GalleryFilter.all => '这个相册里没有图片',
-      _GalleryFilter.motionOnly => '没有符合条件的实况图',
-      _GalleryFilter.needsFix => '没有待修复的实况图',
+      _GalleryFilter.all => l.galleryFilteredEmptyAll,
+      _GalleryFilter.motionOnly => l.galleryFilteredEmptyMotion,
+      _GalleryFilter.needsFix => l.galleryFilteredEmptyNeedsFix,
     };
     return Center(
       child: Padding(
@@ -1505,11 +1517,16 @@ class _PermissionState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final title = permanentlyDenied ? '权限已关闭' : '需要图库访问权限';
+    final l = context.l10n;
+    final title = permanentlyDenied
+        ? l.permissionDeniedTitle
+        : l.permissionNeededTitle;
     final body = permanentlyDenied
-        ? '在系统设置里给 Liveback 开启"照片和视频"权限后再回到这里。'
-        : '读取你相册里的实况图，才能送去修复。权限只用于本机解析，不上传。';
-    final btn = permanentlyDenied ? '去系统设置' : '授予权限';
+        ? l.permissionDeniedBody
+        : l.permissionNeededBody;
+    final btn = permanentlyDenied
+        ? l.permissionOpenSettings
+        : l.permissionCta;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
