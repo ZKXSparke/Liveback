@@ -17,19 +17,19 @@ class AppL10nEn extends AppL10n {
   }
 
   @override
-  String get homeMastheadLine1 => '让实况图\n';
+  String get homeMastheadLine1 => 'Make your\n';
 
   @override
-  String get homeMastheadEmphasis => '重新';
+  String get homeMastheadEmphasis => 'Motion Photos';
 
   @override
-  String get homeMastheadTail => '动起来';
+  String get homeMastheadTail => ' move again';
 
   @override
-  String get homePrimaryCta => '选择实况图';
+  String get homePrimaryCta => 'Select Motion Photos';
 
   @override
-  String get homePrimaryCtaSubtitle => '最多 100 张批量处理';
+  String get homePrimaryCtaSubtitle => 'Batch up to 100 at once';
 
   @override
   String get statusChipReady => 'READY';
@@ -47,14 +47,14 @@ class AppL10nEn extends AppL10n {
   String get localOfflineLabel => 'LOCAL · OFFLINE';
 
   @override
-  String get galleryTitleSelect => '选择实况图';
+  String get galleryTitleSelect => 'Select Motion Photos';
 
   @override
-  String get galleryTitleAllAlbums => '全部相册';
+  String get galleryTitleAllAlbums => 'All albums';
 
   @override
   String galleryDoneButton(String selection) {
-    return '完成 · $selection';
+    return 'Done · $selection';
   }
 
   @override
@@ -64,101 +64,105 @@ class AppL10nEn extends AppL10n {
 
   @override
   String gallerySelectionHidden(int selected, int max, int hidden) {
-    return '$selected/$max · +$hidden 张已选但隐藏';
+    return '$selected/$max · +$hidden selected but hidden';
   }
 
   @override
-  String get filterAll => '全部';
+  String get filterAll => 'All';
 
   @override
-  String get filterMotionOnly => '仅显示实况图';
+  String get filterMotionOnly => 'Motion Photos only';
 
   @override
-  String get filterNeedsFix => '待修复';
+  String get filterNeedsFix => 'Needs fix';
 
   @override
-  String get albumPickerTitle => '选择相册';
+  String get albumPickerTitle => 'Select album';
 
   @override
-  String get albumPickerAllAlbums => '全部相册';
+  String get albumPickerAllAlbums => 'All albums';
 
   @override
-  String get albumPickerEmpty => '图库里没有相册';
+  String get albumPickerEmpty => 'No albums in gallery';
 
   @override
   String albumPickerCount(int count) {
-    return '$count 张';
+    return '$count photos';
   }
 
   @override
-  String get galleryEmptyTitle => '图库里没有图片';
+  String get galleryEmptyTitle => 'No photos in gallery';
 
   @override
-  String get galleryEmptyBody => '拍摄实况图或从相册导入后再来';
+  String get galleryEmptyBody =>
+      'Shoot a Motion Photo or import from an album first';
 
   @override
-  String get galleryFilteredEmptyAll => '这个相册里没有图片';
+  String get galleryFilteredEmptyAll => 'No photos in this album';
 
   @override
-  String get galleryFilteredEmptyMotion => '没有符合条件的实况图';
+  String get galleryFilteredEmptyMotion =>
+      'No Motion Photos match the current filter';
 
   @override
-  String get galleryFilteredEmptyNeedsFix => '没有待修复的实况图';
+  String get galleryFilteredEmptyNeedsFix => 'No Motion Photos need fixing';
 
   @override
-  String get galleryNoMore => '没有更多图片了';
+  String get galleryNoMore => 'No more photos';
 
   @override
-  String get galleryNoMoreFiltered => '没有更多符合条件的图片';
+  String get galleryNoMoreFiltered => 'No more matching photos';
 
   @override
   String galleryReadError(String error) {
-    return '图库读取失败\n$error';
+    return 'Gallery read failed\n$error';
   }
 
   @override
-  String get retry => '重试';
+  String get retry => 'Retry';
 
   @override
-  String get permissionNeededTitle => '需要图库访问权限';
+  String get permissionNeededTitle => 'Gallery access required';
 
   @override
-  String get permissionDeniedTitle => '权限已关闭';
+  String get permissionDeniedTitle => 'Permission denied';
 
   @override
-  String get permissionNeededBody => '读取你相册里的实况图，才能送去修复。权限只用于本机解析，不上传。';
+  String get permissionNeededBody =>
+      'Liveback needs access to read Motion Photos from your gallery. Files are processed on-device and never uploaded.';
 
   @override
-  String get permissionDeniedBody => '在系统设置里给 Liveback 开启\"照片和视频\"权限后再回到这里。';
+  String get permissionDeniedBody =>
+      'Enable \"Photos and videos\" permission for Liveback in system settings, then return here.';
 
   @override
-  String get permissionCta => '授予权限';
+  String get permissionCta => 'Grant permission';
 
   @override
-  String get permissionOpenSettings => '去系统设置';
+  String get permissionOpenSettings => 'Open settings';
 
   @override
   String confirmBarStart(int count) {
-    return '$count 张实况图 · 开始修复';
+    return '$count Motion Photos · Start fixing';
   }
 
   @override
-  String get cancel => '取消';
+  String get cancel => 'Cancel';
 
   @override
-  String get startFix => '开始修复';
+  String get startFix => 'Start fixing';
 
   @override
-  String get badgeAlreadySamsung => '已是三星';
+  String get badgeAlreadySamsung => 'Already Samsung';
 
   @override
-  String get badgeNeedsFix => '待修复';
+  String get badgeNeedsFix => 'Needs fix';
 
   @override
-  String get tasksTitleProcessing => '处理中';
+  String get tasksTitleProcessing => 'Processing';
 
   @override
-  String get tasksTitleDone => '已完成';
+  String get tasksTitleDone => 'Done';
 
   @override
   String tasksProgressRatio(int processed, int total) {
@@ -166,354 +170,373 @@ class AppL10nEn extends AppL10n {
   }
 
   @override
-  String get tasksCancelAllTooltip => '取消全部任务';
+  String get tasksCancelAllTooltip => 'Cancel all tasks';
 
   @override
-  String get tasksProcessingSnack => '处理中，请耐心等待';
+  String get tasksProcessingSnack => 'Processing — please wait';
 
   @override
-  String get tasksEmpty => '暂无任务';
+  String get tasksEmpty => 'No tasks';
 
   @override
-  String get tasksKeepAppOpen => '请保持应用打开直至完成';
+  String get tasksKeepAppOpen => 'Keep the app open until complete';
 
   @override
-  String get tasksPickMore => '再来一批';
+  String get tasksPickMore => 'Pick more';
 
   @override
   String tasksShareAll(int count) {
-    return '分享全部 ($count)';
+    return 'Share all ($count)';
   }
 
   @override
-  String get tasksCancelAllTitle => '取消全部任务？';
+  String get tasksCancelAllTitle => 'Cancel all tasks?';
 
   @override
-  String get tasksCancelAllBody => '已处理完成的文件会保留，未开始的会被丢弃。';
+  String get tasksCancelAllBody =>
+      'Completed files are kept. Queued tasks will be discarded.';
 
   @override
-  String get tasksCancelAllKeep => '继续处理';
+  String get tasksCancelAllKeep => 'Keep processing';
 
   @override
-  String get tasksCancelAllConfirm => '确认取消';
+  String get tasksCancelAllConfirm => 'Cancel all';
 
   @override
-  String get tasksLongVideoInline => '视频较长，可能识别失败';
+  String get tasksLongVideoInline => 'Long video — WeChat may not recognize it';
 
   @override
-  String get taskStatusWaiting => '等待中';
+  String get taskStatusWaiting => 'Waiting';
 
   @override
-  String get taskStatusProcessing => '处理中…';
+  String get taskStatusProcessing => 'Processing…';
 
   @override
   String taskStatusCompleted(String elapsed) {
-    return '修复完成 · $elapsed';
+    return 'Fixed · $elapsed';
   }
 
   @override
-  String get taskStatusFailed => '修复失败';
+  String get taskStatusFailed => 'Fix failed';
 
   @override
   String taskStatusFailedWithCode(String code) {
-    return '修复失败 · $code';
+    return 'Fix failed · $code';
   }
 
   @override
-  String get taskStatusCancelled => '已取消';
+  String get taskStatusCancelled => 'Cancelled';
 
   @override
-  String get taskStatusSkippedAlreadySamsung => '已是三星格式，无需修复';
+  String get taskStatusSkippedAlreadySamsung =>
+      'Already in Samsung format — no fix needed';
 
   @override
-  String get taskStatusSkippedNotMotionPhoto => '不是实况图，已跳过';
+  String get taskStatusSkippedNotMotionPhoto => 'Not a Motion Photo — skipped';
 
   @override
-  String get taskPhaseParsing => '解析中';
+  String get taskPhaseParsing => 'Parsing';
 
   @override
-  String get taskPhaseInjectingSef => '注入 SEF';
+  String get taskPhaseInjectingSef => 'Injecting SEF';
 
   @override
-  String get taskPhaseWriting => '写入中';
+  String get taskPhaseWriting => 'Writing';
 
   @override
-  String get errorDialogDefaultFailureTitle => '修复失败';
+  String get errorDialogDefaultFailureTitle => 'Fix failed';
 
   @override
-  String get errorDialogDefaultFailureBody => '处理失败，请稍后重试';
+  String get errorDialogDefaultFailureBody =>
+      'Processing failed. Please try again later.';
 
   @override
-  String get errorDialogBack => '返回';
+  String get errorDialogBack => 'Back';
 
   @override
-  String get errorDialogRetry => '重试';
+  String get errorDialogRetry => 'Retry';
 
   @override
-  String get resultNotFound => '任务不存在';
+  String get resultNotFound => 'Task not found';
 
   @override
-  String get resultTitleCompleted => '修复完成';
+  String get resultTitleCompleted => 'Fixed';
 
   @override
-  String get resultSubtitleCompleted => '已生成三星兼容的 Motion Photo';
+  String get resultSubtitleCompleted =>
+      'Samsung-compatible Motion Photo generated';
 
   @override
-  String get resultTitleFailed => '修复失败';
+  String get resultTitleFailed => 'Fix failed';
 
   @override
-  String get resultSubtitleFailedFallback => '处理失败，请稍后重试';
+  String get resultSubtitleFailedFallback =>
+      'Processing failed. Please try again later.';
 
   @override
-  String get resultTitleCancelled => '已取消';
+  String get resultTitleCancelled => 'Cancelled';
 
   @override
-  String get resultSubtitleCancelled => '此任务已被取消';
+  String get resultSubtitleCancelled => 'This task was cancelled';
 
   @override
-  String get resultTitleSkippedAlreadySamsung => '无需修复';
+  String get resultTitleSkippedAlreadySamsung => 'No fix needed';
 
   @override
-  String get resultSubtitleSkippedAlreadySamsung => '此文件已是三星 SEF 格式，可以直接发送到微信';
+  String get resultSubtitleSkippedAlreadySamsung =>
+      'This file is already in Samsung SEF format and can be sent to WeChat directly';
 
   @override
-  String get resultTitleSkippedNotMotionPhoto => '不是实况图';
+  String get resultTitleSkippedNotMotionPhoto => 'Not a Motion Photo';
 
   @override
-  String get resultSubtitleSkippedNotMotionPhoto => '此文件不是实况图，没有可注入的视频段';
+  String get resultSubtitleSkippedNotMotionPhoto =>
+      'This file is not a Motion Photo — no video segment to inject';
 
   @override
-  String get resultTitleProcessing => '处理中';
+  String get resultTitleProcessing => 'Processing';
 
   @override
-  String get resultWaveBefore => '修复前';
+  String get resultWaveBefore => 'Before';
 
   @override
-  String get resultWaveAfter => '修复后';
+  String get resultWaveAfter => 'After';
 
   @override
-  String get resultOutputPath => '输出: Pictures/Liveback/';
+  String get resultOutputPath => 'Output: Pictures/Liveback/';
 
   @override
-  String get resultLongVideoWarn => '视频 >3s，微信可能识别为普通图片';
+  String get resultLongVideoWarn =>
+      'Video >3s — WeChat may treat it as a still photo';
 
   @override
-  String get resultBackToList => '返回列表';
+  String get resultBackToList => 'Back to list';
 
   @override
-  String get resultShareWeChat => '分享到微信';
+  String get resultShareWeChat => 'Share to WeChat';
 
   @override
-  String get shareNoWeChat => '未安装微信';
+  String get shareNoWeChat => 'WeChat not installed';
 
   @override
   String shareFailed(String error) {
-    return '分享失败: $error';
+    return 'Share failed: $error';
   }
 
   @override
-  String get settingsTitle => '设置';
+  String get settingsTitle => 'Settings';
 
   @override
-  String get settingsLanguageSection => '语言';
+  String get settingsLanguageSection => 'Language';
 
   @override
   String get settingsLanguageHeader => '语言 / Language';
 
   @override
-  String get settingsLanguageDescription => '切换应用语言。跟随系统则与设备语言一致。';
+  String get settingsLanguageDescription =>
+      'Change the app language. System follows your device locale.';
 
   @override
-  String get languagePickerSystem => '跟随系统';
+  String get languagePickerSystem => 'System';
 
   @override
   String get languagePickerEn => 'English';
 
   @override
-  String get languagePickerZh => '中文';
+  String get languagePickerZh => '中文 (Chinese)';
 
   @override
-  String get settingsAppearanceSection => '外观';
+  String get settingsAppearanceSection => 'Appearance';
 
   @override
-  String get settingsThemeHeader => '主题';
+  String get settingsThemeHeader => 'Theme';
 
   @override
-  String get settingsThemeDescription => '默认跟随系统切换深浅色；可强制固定其中一种';
+  String get settingsThemeDescription =>
+      'Follows system by default. Pin to light or dark if preferred.';
 
   @override
-  String get themeSystem => '跟随系统';
+  String get themeSystem => 'System';
 
   @override
-  String get themeLight => '浅色';
+  String get themeLight => 'Light';
 
   @override
-  String get themeDark => '深色';
+  String get themeDark => 'Dark';
 
   @override
-  String get settingsNotificationSection => '通知';
+  String get settingsNotificationSection => 'Notifications';
 
   @override
-  String get settingsNotifRowLabel => '完成后系统通知';
+  String get settingsNotifRowLabel => 'Batch completion notification';
 
   @override
-  String get settingsNotifRowSub => '批次处理完成时推送通知';
+  String get settingsNotifRowSub => 'Notify when a batch finishes processing';
 
   @override
-  String get settingsStorageSection => '存储';
+  String get settingsStorageSection => 'Storage';
 
   @override
-  String get settingsClearCacheLabel => '清除缓存';
+  String get settingsClearCacheLabel => 'Clear cache';
 
   @override
-  String get settingsClearCacheSub => '清理画廊缩略图缓存，不会删除输出文件';
+  String get settingsClearCacheSub =>
+      'Clears gallery thumbnail cache. Output files are not affected.';
 
   @override
-  String get settingsToolsSection => '工具';
+  String get settingsToolsSection => 'Tools';
 
   @override
-  String get settingsTestModeLabel => '自检';
+  String get settingsTestModeLabel => 'Self-test';
 
   @override
-  String get settingsTestModeSub => '用内置样本验证格式修复链路';
+  String get settingsTestModeSub =>
+      'Validates the binary fix chain against a bundled sample';
 
   @override
-  String get settingsDialogPreviewSection => '弹窗预览（开发调试）';
+  String get settingsDialogPreviewSection => 'Dialog preview (dev)';
 
   @override
-  String get settingsDlgInfoLabel => '信息 · 首次警告';
+  String get settingsDlgInfoLabel => 'Info · first-run warning';
 
   @override
-  String get settingsDlgInfoSub => '首次点击处理按钮弹出，可勾选不再提醒';
+  String get settingsDlgInfoSub =>
+      'Shown on first tap of the process button. Can be dismissed permanently.';
 
   @override
-  String get settingsDlgConfirmLabel => '确认 · 危险操作';
+  String get settingsDlgConfirmLabel => 'Confirm · destructive action';
 
   @override
-  String get settingsDlgConfirmSub => '例如取消全部任务的二次确认';
+  String get settingsDlgConfirmSub =>
+      'Secondary confirmation, e.g. cancel all tasks';
 
   @override
-  String get settingsDlgErrorLabel => '错误 · 详情';
+  String get settingsDlgErrorLabel => 'Error · detail view';
 
   @override
-  String get settingsDlgErrorSub => '用户点击失败任务查看原因';
+  String get settingsDlgErrorSub =>
+      'Shown when the user taps a failed task to see the reason';
 
   @override
-  String get settingsDlgInfoTitle => '处理过程提示';
+  String get settingsDlgInfoTitle => 'Processing heads-up';
 
   @override
-  String get settingsDlgInfoBody => '处理期间请不要切走应用，否则已排队的任务会丢失。处理完成后会自动通知。';
+  String get settingsDlgInfoBody =>
+      'Keep the app open while processing. Queued tasks are lost if you switch away. You\'ll be notified when the batch completes.';
 
   @override
-  String get settingsDlgInfoCheckbox => '不再提醒';
+  String get settingsDlgInfoCheckbox => 'Don\'t show again';
 
   @override
-  String get dialogInfoConfirm => '知道了';
+  String get dialogInfoConfirm => 'Got it';
 
   @override
-  String get dialogConfirmDefault => '确认';
+  String get dialogConfirmDefault => 'Confirm';
 
   @override
-  String get dialogConfirmDefaultCancel => '取消';
+  String get dialogConfirmDefaultCancel => 'Cancel';
 
   @override
   String get settingsDlgErrorBody =>
-      '写入 SEF trailer 时文件被其他程序占用，请关闭预览工具后重试，或检查存储权限。';
+      'The file was locked by another process while writing the SEF trailer. Close any preview tools and retry, or check storage permissions.';
 
   @override
-  String get settingsAboutSection => '关于';
+  String get settingsAboutSection => 'About';
 
   @override
-  String get settingsVersionLabel => '版本';
+  String get settingsVersionLabel => 'Version';
 
   @override
-  String get settingsFooter => '本应用纯本地处理，不联网';
+  String get settingsFooter => 'All processing is local. No network access.';
 
   @override
-  String get settingsClearCacheTitle => '清除画廊缩略图缓存？';
+  String get settingsClearCacheTitle => 'Clear gallery thumbnail cache?';
 
   @override
-  String get settingsClearCacheBody => '这只会清除画廊预览的缩略图，不会影响输出文件。';
+  String get settingsClearCacheBody =>
+      'Only preview thumbnails are cleared. Output files are not affected.';
 
   @override
-  String get settingsClearCacheCleared => '已清除';
+  String get settingsClearCacheCleared => 'Cleared';
 
   @override
-  String get settingsClearCacheConfirm => '清除';
+  String get settingsClearCacheConfirm => 'Clear';
 
   @override
-  String get testModeTitle => '自检';
+  String get testModeTitle => 'Self-test';
 
   @override
-  String get testModeSampleSection => '测试样本';
+  String get testModeSampleSection => 'Test sample';
 
   @override
   String get testModeSampleDuration => '7.44 MB · 2.8s';
 
   @override
-  String get testModeRunning => '运行中…';
+  String get testModeRunning => 'Running…';
 
   @override
-  String get testModeRun => '运行自检';
+  String get testModeRun => 'Run self-test';
 
   @override
-  String get testModeRunAgain => '重新运行';
+  String get testModeRunAgain => 'Run again';
 
   @override
-  String get testModeShare => '分享测试结果到微信';
+  String get testModeShare => 'Share test result to WeChat';
 
   @override
-  String get testModeShareUnavailable => '尚无可分享的输出（等待真实管线接入）';
+  String get testModeShareUnavailable =>
+      'No output to share yet (waiting for real pipeline)';
 
   @override
-  String get testModeStepParse => '解析 JPEG';
+  String get testModeStepParse => 'Parse JPEG';
 
   @override
-  String get testModeStepDetectMp4 => '检测 MP4 段';
+  String get testModeStepDetectMp4 => 'Detect MP4 segment';
 
   @override
-  String get testModeStepInjectSef => '注入 SEF trailer';
+  String get testModeStepInjectSef => 'Inject SEF trailer';
 
   @override
-  String get testModeStepFakeExif => '伪装 EXIF';
+  String get testModeStepFakeExif => 'Spoof EXIF';
 
   @override
-  String get testModeStepWriteOutput => '写入输出';
+  String get testModeStepWriteOutput => 'Write output';
 
   @override
-  String get previewTooLarge => '文件过大，无法预览';
+  String get previewTooLarge => 'File too large to preview';
 
   @override
-  String get previewLoadFailed => '加载失败';
+  String get previewLoadFailed => 'Load failed';
 
   @override
-  String get previewNoVideo => '该图片无视频段';
+  String get previewNoVideo => 'No embedded video';
 
   @override
-  String get previewDecodeFailed => '视频解码失败';
+  String get previewDecodeFailed => 'Video decode failed';
 
   @override
-  String get notificationChannelName => '批次处理完成';
+  String get notificationChannelName => 'Batch complete';
 
   @override
-  String get notificationChannelDescription => 'Liveback 处理一批实况图后推送';
+  String get notificationChannelDescription =>
+      'Sent when Liveback finishes processing a batch of Motion Photos';
 
   @override
-  String get notificationBatchDefault => '批次处理完成';
+  String get notificationBatchDefault => 'Batch complete';
 
   @override
   String notificationBatchFragmentSuccess(int count) {
-    return '$count 张已修复';
+    return '$count fixed';
   }
 
   @override
   String notificationBatchFragmentFailed(int count) {
-    return '$count 张失败';
+    return '$count failed';
   }
 
   @override
   String notificationBatchFragmentSkipped(int count) {
-    return '$count 张跳过';
+    return '$count skipped';
   }
 
   @override
@@ -522,34 +545,35 @@ class AppL10nEn extends AppL10n {
   }
 
   @override
-  String get errJpegParse => '文件格式错误，可能不是有效的 JPEG';
+  String get errJpegParse => 'File format error — may not be a valid JPEG.';
 
   @override
   String errJpegParseDetail(String detail) {
-    return '文件格式错误，可能不是有效的 JPEG（$detail）';
+    return 'File format error — may not be a valid JPEG ($detail).';
   }
 
   @override
-  String get errFileTooLarge => '文件太大（>2GB），请先裁剪视频';
+  String get errFileTooLarge => 'File too large (>2 GB). Trim the video first.';
 
   @override
-  String get errApp1Overflow => '文件元数据过大，无法安全重写';
+  String get errApp1Overflow => 'File metadata too large to rewrite safely.';
 
   @override
-  String get errSefWriteFail => '写入失败，请检查存储空间';
+  String get errSefWriteFail => 'Write failed. Check available storage.';
 
   @override
-  String get errWriteCorrupt => '写入中断，输出文件不完整';
+  String get errWriteCorrupt =>
+      'Write interrupted — output file is incomplete.';
 
   @override
-  String get errPermission => '未获得存储或通知权限';
+  String get errPermission => 'Storage or notification permission not granted.';
 
   @override
-  String get errAlreadySamsung => '已是三星格式，无需修复';
+  String get errAlreadySamsung => 'Already in Samsung format — no fix needed.';
 
   @override
-  String get errNoMp4 => '不是实况图，没有可注入的视频段';
+  String get errNoMp4 => 'Not a Motion Photo — no video segment to inject.';
 
   @override
-  String get errUnknown => '处理失败，请稍后重试';
+  String get errUnknown => 'Processing failed. Please try again later.';
 }
