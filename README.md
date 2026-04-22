@@ -87,27 +87,6 @@ Repaired files land in `Pictures/Liveback/` with the original `DateTimeOriginal`
 - Samsung-native idempotency — re-fixing a file is a no-op
 - Glitch-to-clean splash animation in brand voice
 
-## Build from source
-
-```bash
-# Prerequisites: Flutter 3.24+, Android SDK 34+, JDK 17
-git clone https://github.com/ZKXSparke/Liveback.git
-cd Liveback
-flutter pub get
-flutter build apk --debug       # unsigned debug APK, any device
-```
-
-For a signed release build you need your own keystore in `android/key.properties` (the file is gitignored). Minimum shape:
-
-```properties
-storeFile=/absolute/path/to/your-release.jks
-storePassword=...
-keyAlias=...
-keyPassword=...
-```
-
-Then `flutter build apk --release` produces a signed APK at `build/app/outputs/flutter-apk/app-release.apk`.
-
 ## License
 
 MIT. See [LICENSE](LICENSE).
