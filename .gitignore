@@ -75,3 +75,8 @@ icon-prompts/
 ARCHITECTURE_HANDOFF.md
 MotionFix 需求文档 *.md
 UI-Brand-decisions.md
+
+# Local-only marketing work file
+docs/marketing-prompts.md
+docs/store/
+docs/marketing/
