@@ -16,6 +16,14 @@
 
 ---
 
+<table align="center">
+  <tr>
+    <td width="33%"><img src="docs/features/feature-01-detect.png" alt="Detect" /></td>
+    <td width="33%"><img src="docs/features/feature-02-repair.png" alt="Repair" /></td>
+    <td width="33%"><img src="docs/features/feature-03-share.png" alt="Share" /></td>
+  </tr>
+</table>
+
 ## What it does
 
 On newer Samsung phones, *Motion Photos* are JPEGs with an MP4 video trailer and a proprietary **SEF** (Samsung Extended Format) marker. WeChat's Android client only recognizes photos carrying that SEF marker as Live Photos — native-shot Samsung motion photos send just fine.
