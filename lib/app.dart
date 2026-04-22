@@ -14,10 +14,14 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'core/app_lifecycle.dart';
+import 'core/locale_controller.dart';
 import 'core/theme.dart';
 import 'core/theme_mode_controller.dart';
+import 'l10n/generated/app_localizations.dart';
+import 'l10n/l10n_ext.dart';
 import 'features/gallery/gallery_page.dart';
 import 'features/home/home_page.dart';
 import 'features/preview/preview_page.dart';
@@ -54,16 +58,20 @@ class _LivebackAppState extends State<LivebackApp>
   }
 
   Future<void> _bootstrap() async {
-    // Load persisted theme-mode choice first so the first frame's theme
-    // matches the user's last selection (avoids a system → user-preferred
-    // flicker on cold launch).
-    await ThemeModeController.instance.load();
+    // Load persisted theme-mode + locale choices BEFORE first MaterialApp
+    // rebuild so the first frame already matches the user's last selection
+    // (avoids a flicker from system-default → preferred on cold launch).
+    await Future.wait([
+      ThemeModeController.instance.load(),
+      LocaleController.instance.load(),
+    ]);
     try {
       await TaskQueue.instance.init();
     } catch (e, st) {
       debugPrint('LivebackApp: TaskQueue init failed: $e\n$st');
       if (!mounted) return;
-      setState(() => _bootstrapError = 'TaskQueue init failed: $e');
+      // Banner picks up the localized template via bootstrapTaskQueueFailed.
+      setState(() => _bootstrapError = '$e');
     }
     try {
       await NotificationService().init();
@@ -88,14 +96,40 @@ class _LivebackAppState extends State<LivebackApp>
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<ThemeMode>(
-      valueListenable: ThemeModeController.instance.mode,
-      builder: (_, mode, __) => MaterialApp(
+    // Listen to BOTH controllers via Listenable.merge — a change in either
+    // rebuilds the MaterialApp exactly once per frame boundary.
+    final listenable = Listenable.merge([
+      ThemeModeController.instance.mode,
+      LocaleController.instance.locale,
+    ]);
+    return AnimatedBuilder(
+      animation: listenable,
+      builder: (_, __) {
+        final mode = ThemeModeController.instance.mode.value;
+        final locale = LocaleController.instance.locale.value;
+        return MaterialApp(
       title: 'Liveback',
       debugShowCheckedModeBanner: false,
       theme: LivebackTheme.light(),
       darkTheme: LivebackTheme.dark(),
       themeMode: mode,
+      locale: locale, // null ⇒ defer to localeResolutionCallback
+      supportedLocales: const [Locale('en'), Locale('zh')],
+      localizationsDelegates: const [
+        AppL10n.delegate,
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      // When the user's explicit choice is null (system-follow), pick zh
+      // if the device locale is Chinese-anything; otherwise FALL BACK TO
+      // ENGLISH. Do NOT let Flutter's default "first supported locale"
+      // resolution fire (supportedLocales[0] is en here, which happens to
+      // match, but keep this explicit so it survives list reordering).
+      localeResolutionCallback: (deviceLocale, supported) {
+        if (deviceLocale?.languageCode == 'zh') return const Locale('zh');
+        return const Locale('en');
+      },
       initialRoute: '/',
       onGenerateRoute: _onGenerateRoute,
       builder: (ctx, child) {
@@ -127,7 +161,8 @@ class _LivebackAppState extends State<LivebackApp>
           child: body,
         );
       },
-    ),
+    );
+      },
     );
   }
 
@@ -162,6 +197,12 @@ class _BootstrapErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // bootstrap error may run before AppL10n is available if the banner is
+    // mounted very early; guard the lookup and fall back to the raw
+    // (English-prefixed) diagnostic.
+    final l = AppL10n.of(context);
+    final display =
+        l != null ? l.bootstrapTaskQueueFailed(message) : 'TaskQueue init failed: $message';
     return Stack(
       children: [
         child,
@@ -177,7 +218,7 @@ class _BootstrapErrorBanner extends StatelessWidget {
                 vertical: 6,
               ),
               child: Text(
-                message,
+                display,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: const TextStyle(

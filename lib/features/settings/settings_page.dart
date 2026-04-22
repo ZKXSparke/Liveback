@@ -9,7 +9,9 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../core/locale_controller.dart';
 import '../../core/theme_mode_controller.dart';
+import '../../l10n/l10n_ext.dart';
 import '../../widgets/dialog/confirm_dialog.dart';
 import '../../widgets/dialog/error_dialog.dart';
 import '../../widgets/dialog/info_dialog.dart';
@@ -84,6 +86,7 @@ class _SettingsPageState extends State<SettingsPage> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
@@ -97,8 +100,24 @@ class _SettingsPageState extends State<SettingsPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     _masthead(context),
+                    // Language first — it affects every other label on this
+                    // page.
                     _Section(
-                      title: '外观',
+                      title: l.settingsLanguageSection,
+                      children: [
+                        ValueListenableBuilder<Locale?>(
+                          valueListenable:
+                              LocaleController.instance.locale,
+                          builder: (_, locale, __) => _LanguagePicker(
+                            current: locale,
+                            onChange: (loc) =>
+                                LocaleController.instance.setLocale(loc),
+                          ),
+                        ),
+                      ],
+                    ),
+                    _Section(
+                      title: l.settingsAppearanceSection,
                       children: [
                         ValueListenableBuilder<ThemeMode>(
                           valueListenable:
@@ -112,11 +131,11 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     _Section(
-                      title: '通知',
+                      title: l.settingsNotificationSection,
                       children: [
                         _Row(
-                          label: '完成后系统通知',
-                          sub: '批次处理完成时推送通知',
+                          label: l.settingsNotifRowLabel,
+                          sub: l.settingsNotifRowSub,
                           trailing: _Toggle(
                             on: _notifEnabled,
                             onChange: _setNotif,
@@ -125,22 +144,22 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     _Section(
-                      title: '存储',
+                      title: l.settingsStorageSection,
                       children: [
                         _Row(
-                          label: '清除缓存',
-                          sub: '清理画廊缩略图缓存，不会删除输出文件',
+                          label: l.settingsClearCacheLabel,
+                          sub: l.settingsClearCacheSub,
                           chevron: true,
                           onTap: () => _showClearCache(context),
                         ),
                       ],
                     ),
                     _Section(
-                      title: '工具',
+                      title: l.settingsToolsSection,
                       children: [
                         _Row(
-                          label: '自检',
-                          sub: '用内置样本验证格式修复链路',
+                          label: l.settingsTestModeLabel,
+                          sub: l.settingsTestModeSub,
                           chevron: true,
                           onTap: () => Navigator.of(context)
                               .pushNamed('/test-mode'),
@@ -148,53 +167,51 @@ class _SettingsPageState extends State<SettingsPage> {
                       ],
                     ),
                     _Section(
-                      title: '弹窗预览（开发调试）',
+                      title: l.settingsDialogPreviewSection,
                       children: [
                         _Row(
-                          label: '信息 · 首次警告',
-                          sub: '首次点击处理按钮弹出，可勾选不再提醒',
+                          label: l.settingsDlgInfoLabel,
+                          sub: l.settingsDlgInfoSub,
                           chevron: true,
                           onTap: () => showInfoDialog(
                             context,
-                            title: '处理过程提示',
-                            body:
-                                '处理期间请不要切走应用，否则已排队的任务会丢失。处理完成后会自动通知。',
-                            checkboxLabel: '不再提醒',
+                            title: l.settingsDlgInfoTitle,
+                            body: l.settingsDlgInfoBody,
+                            checkboxLabel: l.settingsDlgInfoCheckbox,
                           ),
                         ),
                         _Row(
-                          label: '确认 · 危险操作',
-                          sub: '例如取消全部任务的二次确认',
+                          label: l.settingsDlgConfirmLabel,
+                          sub: l.settingsDlgConfirmSub,
                           chevron: true,
                           onTap: () => showConfirmDialog(
                             context,
-                            title: '取消全部任务？',
-                            body: '已处理完成的文件会保留，未开始的会被丢弃。',
-                            cancelText: '继续处理',
-                            confirmText: '确认取消',
+                            title: l.tasksCancelAllTitle,
+                            body: l.tasksCancelAllBody,
+                            cancelText: l.tasksCancelAllKeep,
+                            confirmText: l.tasksCancelAllConfirm,
                             destructive: true,
                           ),
                         ),
                         _Row(
-                          label: '错误 · 详情',
-                          sub: '用户点击失败任务查看原因',
+                          label: l.settingsDlgErrorLabel,
+                          sub: l.settingsDlgErrorSub,
                           chevron: true,
                           onTap: () => showErrorDialog(
                             context,
                             errorCode: 'ERR_SEF_WRITE_FAIL',
-                            title: '修复失败',
-                            body:
-                                '写入 SEF trailer 时文件被其他程序占用，请关闭预览工具后重试，或检查存储权限。',
+                            title: l.errorDialogDefaultFailureTitle,
+                            body: l.settingsDlgErrorBody,
                             canRetry: true,
                           ),
                         ),
                       ],
                     ),
                     _Section(
-                      title: '关于',
+                      title: l.settingsAboutSection,
                       children: [
                         _Row(
-                          label: '版本',
+                          label: l.settingsVersionLabel,
                           sub: 'Liveback',
                           onTap: _tapVersion,
                           trailing: Row(
@@ -246,7 +263,7 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           Expanded(
             child: Text(
-              '设置',
+              context.l10n.settingsTitle,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 17,
@@ -312,7 +329,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ),
             const SizedBox(height: 10),
             Text(
-              '本应用纯本地处理，不联网',
+              context.l10n.settingsFooter,
               style: TextStyle(fontSize: 12, color: c.inkFaint),
             ),
           ],
@@ -322,18 +339,20 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> _showClearCache(BuildContext context) async {
+    final l = context.l10n;
     final messenger = ScaffoldMessenger.of(context);
+    final clearedMsg = l.settingsClearCacheCleared;
     final confirmed = await showConfirmDialog(
       context,
-      title: '清除画廊缩略图缓存？',
-      body: '这只会清除画廊预览的缩略图，不会影响输出文件。',
+      title: l.settingsClearCacheTitle,
+      body: l.settingsClearCacheBody,
       destructive: false,
-      confirmText: '清除',
+      confirmText: l.settingsClearCacheConfirm,
     );
     if (confirmed) {
       if (!mounted) return;
       messenger.showSnackBar(
-        const SnackBar(content: Text('已清除')),
+        SnackBar(content: Text(clearedMsg)),
       );
     }
   }
@@ -486,10 +505,11 @@ class _ThemeModePicker extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    const options = <(ThemeMode, String, IconData)>[
-      (ThemeMode.system, '跟随系统', Icons.brightness_auto_outlined),
-      (ThemeMode.light, '浅色', Icons.light_mode_outlined),
-      (ThemeMode.dark, '深色', Icons.dark_mode_outlined),
+    final l = context.l10n;
+    final options = <(ThemeMode, String, IconData)>[
+      (ThemeMode.system, l.themeSystem, Icons.brightness_auto_outlined),
+      (ThemeMode.light, l.themeLight, Icons.light_mode_outlined),
+      (ThemeMode.dark, l.themeDark, Icons.dark_mode_outlined),
     ];
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -497,7 +517,7 @@ class _ThemeModePicker extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '主题',
+            l.settingsThemeHeader,
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w500,
@@ -506,7 +526,7 @@ class _ThemeModePicker extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            '默认跟随系统切换深浅色；可强制固定其中一种',
+            l.settingsThemeDescription,
             style: TextStyle(fontSize: 12, color: c.inkDim, height: 1.4),
           ),
           const SizedBox(height: 12),
@@ -528,6 +548,70 @@ class _ThemeModePicker extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Three-option locale picker mirroring [_ThemeModePicker]'s layout. The
+/// three options are: null (system) / Locale('en') / Locale('zh'). We
+/// reuse [_ThemeOptionChip] for visual parity.
+class _LanguagePicker extends StatelessWidget {
+  final Locale? current;
+  final ValueChanged<Locale?> onChange;
+
+  const _LanguagePicker({required this.current, required this.onChange});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final l = context.l10n;
+    final options = <(Locale?, String, IconData)>[
+      (null, l.languagePickerSystem, Icons.translate_outlined),
+      (const Locale('en'), l.languagePickerEn, Icons.language_outlined),
+      (const Locale('zh'), l.languagePickerZh, Icons.language_outlined),
+    ];
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l.settingsLanguageHeader,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+              color: c.ink,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            l.settingsLanguageDescription,
+            style: TextStyle(fontSize: 12, color: c.inkDim, height: 1.4),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              for (var i = 0; i < options.length; i++) ...[
+                Expanded(
+                  child: _ThemeOptionChip(
+                    label: options[i].$2,
+                    icon: options[i].$3,
+                    selected: _localeEquals(current, options[i].$1),
+                    onTap: () => onChange(options[i].$1),
+                  ),
+                ),
+                if (i != options.length - 1) const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  static bool _localeEquals(Locale? a, Locale? b) {
+    if (a == null && b == null) return true;
+    if (a == null || b == null) return false;
+    return a.languageCode == b.languageCode;
   }
 }
 

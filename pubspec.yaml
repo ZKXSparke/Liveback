@@ -10,6 +10,9 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  flutter_localizations:                 # i18n delegates + synthetic package
+    sdk: flutter
+  intl: any                              # resolved transitively by flutter_localizations
   flutter_local_notifications: ^17.2.3   # batch-complete notification (Doc 3 §7)
   path_provider: ^2.1.4                  # cache dir resolution (Doc 1 §6.1)
   exif: ^3.3.0                           # READ-ONLY EXIF parser; rewriter is self-written (Doc 2 §4.2)
@@ -28,6 +31,7 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  generate: true                                   # enables flutter gen-l10n on `pub get`
   assets:
     - assets/test_samples/djimimo_sample.jpg
     - assets/fonts/JetBrainsMono-Regular.woff2      # bundled Mono font per brand §4

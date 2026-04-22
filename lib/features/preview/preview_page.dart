@@ -38,6 +38,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../../core/constants.dart';
+import '../../l10n/l10n_ext.dart';
 import '../../services/mediastore_channel.dart';
 import '../../services/motion_photo_parser.dart';
 import '../../widgets/theme_access.dart';
@@ -421,15 +422,15 @@ class _PreviewPageState extends State<PreviewPage> {
 
           // 无视频段 overlay pill.
           if (_longPressedWithoutVideo)
-            const _CenterPill(
-              text: '该图片无视频段',
+            _CenterPill(
+              text: context.l10n.previewNoVideo,
               colors: darkColors,
             ),
 
           // Decode failure overlay.
           if (_decodeFailed)
-            const _CenterPill(
-              text: '视频解码失败',
+            _CenterPill(
+              text: context.l10n.previewDecodeFailed,
               colors: darkColors,
             ),
         ],
@@ -440,13 +441,13 @@ class _PreviewPageState extends State<PreviewPage> {
   Widget _buildContent(LivebackColors colors) {
     if (_oversized) {
       return _MessageBanner(
-        message: '文件过大，无法预览',
+        message: context.l10n.previewTooLarge,
         colors: colors,
       );
     }
     if (_loadError != null) {
       return _MessageBanner(
-        message: '加载失败',
+        message: context.l10n.previewLoadFailed,
         colors: colors,
       );
     }
@@ -463,7 +464,7 @@ class _PreviewPageState extends State<PreviewPage> {
     final path = _sandboxPath;
     if (path == null) {
       return _MessageBanner(
-        message: '加载失败',
+        message: context.l10n.previewLoadFailed,
         colors: colors,
       );
     }

@@ -1,0 +1,271 @@
+{
+  "@@locale": "en",
+
+  "appName": "Liveback",
+  "@appName": { "description": "Brand name — do not translate." },
+
+  "bootstrapTaskQueueFailed": "TaskQueue init failed: {error}",
+  "@bootstrapTaskQueueFailed": {
+    "description": "Error banner when TaskQueue bootstrap throws. English passthrough — developer-facing, not localized.",
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "homeMastheadLine1": "Make your\n",
+  "homeMastheadEmphasis": "Motion Photos",
+  "homeMastheadTail": " move again",
+  "@homeMastheadLine1": { "description": "Home masthead first line (includes trailing newline)." },
+  "@homeMastheadEmphasis": { "description": "Dimmed emphasis word." },
+  "@homeMastheadTail": { "description": "Masthead tail after emphasis." },
+
+  "homePrimaryCta": "Select Motion Photos",
+  "homePrimaryCtaSubtitle": "Batch up to 100 at once",
+
+  "statusChipReady": "READY",
+  "statusChipSyncing": "SYNCING",
+  "statusChipError": "ERROR",
+  "fixedCounterLabel": "FIXED",
+
+  "localOfflineLabel": "LOCAL · OFFLINE",
+
+  "galleryTitleSelect": "Select Motion Photos",
+  "galleryTitleAllAlbums": "All albums",
+  "galleryDoneButton": "Done · {selection}",
+  "@galleryDoneButton": {
+    "description": "Confirm button label showing selection state.",
+    "placeholders": { "selection": { "type": "String" } }
+  },
+  "gallerySelectionRatio": "{selected}/{max}",
+  "@gallerySelectionRatio": {
+    "placeholders": {
+      "selected": { "type": "int" },
+      "max": { "type": "int" }
+    }
+  },
+  "gallerySelectionHidden": "{selected}/{max} · +{hidden} selected but hidden",
+  "@gallerySelectionHidden": {
+    "placeholders": {
+      "selected": { "type": "int" },
+      "max": { "type": "int" },
+      "hidden": { "type": "int" }
+    }
+  },
+
+  "filterAll": "All",
+  "filterMotionOnly": "Motion Photos only",
+  "filterNeedsFix": "Needs fix",
+
+  "albumPickerTitle": "Select album",
+  "albumPickerAllAlbums": "All albums",
+  "albumPickerEmpty": "No albums in gallery",
+  "albumPickerCount": "{count} photos",
+  "@albumPickerCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+
+  "galleryEmptyTitle": "No photos in gallery",
+  "galleryEmptyBody": "Shoot a Motion Photo or import from an album first",
+  "galleryFilteredEmptyAll": "No photos in this album",
+  "galleryFilteredEmptyMotion": "No Motion Photos match the current filter",
+  "galleryFilteredEmptyNeedsFix": "No Motion Photos need fixing",
+
+  "galleryNoMore": "No more photos",
+  "galleryNoMoreFiltered": "No more matching photos",
+  "galleryReadError": "Gallery read failed\n{error}",
+  "@galleryReadError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "retry": "Retry",
+
+  "permissionNeededTitle": "Gallery access required",
+  "permissionDeniedTitle": "Permission denied",
+  "permissionNeededBody": "Liveback needs access to read Motion Photos from your gallery. Files are processed on-device and never uploaded.",
+  "permissionDeniedBody": "Enable \"Photos and videos\" permission for Liveback in system settings, then return here.",
+  "permissionCta": "Grant permission",
+  "permissionOpenSettings": "Open settings",
+
+  "confirmBarStart": "{count} Motion Photos · Start fixing",
+  "@confirmBarStart": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "cancel": "Cancel",
+  "startFix": "Start fixing",
+
+  "badgeAlreadySamsung": "Already Samsung",
+  "badgeNeedsFix": "Needs fix",
+
+  "tasksTitleProcessing": "Processing",
+  "tasksTitleDone": "Done",
+  "tasksProgressRatio": "{processed} / {total}",
+  "@tasksProgressRatio": {
+    "placeholders": {
+      "processed": { "type": "int" },
+      "total": { "type": "int" }
+    }
+  },
+  "tasksCancelAllTooltip": "Cancel all tasks",
+  "tasksProcessingSnack": "Processing — please wait",
+  "tasksEmpty": "No tasks",
+  "tasksKeepAppOpen": "Keep the app open until complete",
+  "tasksPickMore": "Pick more",
+  "tasksShareAll": "Share all ({count})",
+  "@tasksShareAll": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "tasksCancelAllTitle": "Cancel all tasks?",
+  "tasksCancelAllBody": "Completed files are kept. Queued tasks will be discarded.",
+  "tasksCancelAllKeep": "Keep processing",
+  "tasksCancelAllConfirm": "Cancel all",
+  "tasksLongVideoInline": "Long video — WeChat may not recognize it",
+
+  "taskStatusWaiting": "Waiting",
+  "taskStatusProcessing": "Processing…",
+  "taskStatusCompleted": "Fixed · {elapsed}",
+  "@taskStatusCompleted": {
+    "placeholders": { "elapsed": { "type": "String" } }
+  },
+  "taskStatusFailed": "Fix failed",
+  "taskStatusFailedWithCode": "Fix failed · {code}",
+  "@taskStatusFailedWithCode": {
+    "placeholders": { "code": { "type": "String" } }
+  },
+  "taskStatusCancelled": "Cancelled",
+  "taskStatusSkippedAlreadySamsung": "Already in Samsung format — no fix needed",
+  "taskStatusSkippedNotMotionPhoto": "Not a Motion Photo — skipped",
+
+  "taskPhaseParsing": "Parsing",
+  "taskPhaseInjectingSef": "Injecting SEF",
+  "taskPhaseWriting": "Writing",
+
+  "errorDialogDefaultFailureTitle": "Fix failed",
+  "errorDialogDefaultFailureBody": "Processing failed. Please try again later.",
+  "errorDialogBack": "Back",
+  "errorDialogRetry": "Retry",
+
+  "resultNotFound": "Task not found",
+  "resultTitleCompleted": "Fixed",
+  "resultSubtitleCompleted": "Samsung-compatible Motion Photo generated",
+  "resultTitleFailed": "Fix failed",
+  "resultSubtitleFailedFallback": "Processing failed. Please try again later.",
+  "resultTitleCancelled": "Cancelled",
+  "resultSubtitleCancelled": "This task was cancelled",
+  "resultTitleSkippedAlreadySamsung": "No fix needed",
+  "resultSubtitleSkippedAlreadySamsung": "This file is already in Samsung SEF format and can be sent to WeChat directly",
+  "resultTitleSkippedNotMotionPhoto": "Not a Motion Photo",
+  "resultSubtitleSkippedNotMotionPhoto": "This file is not a Motion Photo — no video segment to inject",
+  "resultTitleProcessing": "Processing",
+  "resultWaveBefore": "Before",
+  "resultWaveAfter": "After",
+  "resultOutputPath": "Output: Pictures/Liveback/",
+  "resultLongVideoWarn": "Video >3s — WeChat may treat it as a still photo",
+  "resultBackToList": "Back to list",
+  "resultShareWeChat": "Share to WeChat",
+  "shareNoWeChat": "WeChat not installed",
+  "shareFailed": "Share failed: {error}",
+  "@shareFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+
+  "settingsTitle": "Settings",
+  "settingsLanguageSection": "Language",
+  "settingsLanguageHeader": "语言 / Language",
+  "settingsLanguageDescription": "Change the app language. System follows your device locale.",
+  "languagePickerSystem": "System",
+  "languagePickerEn": "English",
+  "languagePickerZh": "中文 (Chinese)",
+
+  "settingsAppearanceSection": "Appearance",
+  "settingsThemeHeader": "Theme",
+  "settingsThemeDescription": "Follows system by default. Pin to light or dark if preferred.",
+  "themeSystem": "System",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+
+  "settingsNotificationSection": "Notifications",
+  "settingsNotifRowLabel": "Batch completion notification",
+  "settingsNotifRowSub": "Notify when a batch finishes processing",
+
+  "settingsStorageSection": "Storage",
+  "settingsClearCacheLabel": "Clear cache",
+  "settingsClearCacheSub": "Clears gallery thumbnail cache. Output files are not affected.",
+
+  "settingsToolsSection": "Tools",
+  "settingsTestModeLabel": "Self-test",
+  "settingsTestModeSub": "Validates the binary fix chain against a bundled sample",
+
+  "settingsDialogPreviewSection": "Dialog preview (dev)",
+  "settingsDlgInfoLabel": "Info · first-run warning",
+  "settingsDlgInfoSub": "Shown on first tap of the process button. Can be dismissed permanently.",
+  "settingsDlgConfirmLabel": "Confirm · destructive action",
+  "settingsDlgConfirmSub": "Secondary confirmation, e.g. cancel all tasks",
+  "settingsDlgErrorLabel": "Error · detail view",
+  "settingsDlgErrorSub": "Shown when the user taps a failed task to see the reason",
+  "settingsDlgInfoTitle": "Processing heads-up",
+  "settingsDlgInfoBody": "Keep the app open while processing. Queued tasks are lost if you switch away. You'll be notified when the batch completes.",
+  "settingsDlgInfoCheckbox": "Don't show again",
+  "dialogInfoConfirm": "Got it",
+  "dialogConfirmDefault": "Confirm",
+  "dialogConfirmDefaultCancel": "Cancel",
+  "settingsDlgErrorBody": "The file was locked by another process while writing the SEF trailer. Close any preview tools and retry, or check storage permissions.",
+
+  "settingsAboutSection": "About",
+  "settingsVersionLabel": "Version",
+  "settingsFooter": "All processing is local. No network access.",
+  "settingsClearCacheTitle": "Clear gallery thumbnail cache?",
+  "settingsClearCacheBody": "Only preview thumbnails are cleared. Output files are not affected.",
+  "settingsClearCacheCleared": "Cleared",
+  "settingsClearCacheConfirm": "Clear",
+
+  "testModeTitle": "Self-test",
+  "testModeSampleSection": "Test sample",
+  "testModeSampleDuration": "7.44 MB · 2.8s",
+  "testModeRunning": "Running…",
+  "testModeRun": "Run self-test",
+  "testModeRunAgain": "Run again",
+  "testModeShare": "Share test result to WeChat",
+  "testModeShareUnavailable": "No output to share yet (waiting for real pipeline)",
+  "testModeStepParse": "Parse JPEG",
+  "testModeStepDetectMp4": "Detect MP4 segment",
+  "testModeStepInjectSef": "Inject SEF trailer",
+  "testModeStepFakeExif": "Spoof EXIF",
+  "testModeStepWriteOutput": "Write output",
+
+  "previewTooLarge": "File too large to preview",
+  "previewLoadFailed": "Load failed",
+  "previewNoVideo": "No embedded video",
+  "previewDecodeFailed": "Video decode failed",
+
+  "notificationChannelName": "Batch complete",
+  "notificationChannelDescription": "Sent when Liveback finishes processing a batch of Motion Photos",
+  "notificationBatchDefault": "Batch complete",
+  "notificationBatchFragmentSuccess": "{count} fixed",
+  "@notificationBatchFragmentSuccess": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "notificationBatchFragmentFailed": "{count} failed",
+  "@notificationBatchFragmentFailed": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "notificationBatchFragmentSkipped": "{count} skipped",
+  "@notificationBatchFragmentSkipped": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "notificationBatchJoin": "{parts}",
+  "@notificationBatchJoin": {
+    "description": "Passthrough container so the joined string goes through the ARB pipeline.",
+    "placeholders": { "parts": { "type": "String" } }
+  },
+
+  "errJpegParse": "File format error — may not be a valid JPEG.",
+  "errJpegParseDetail": "File format error — may not be a valid JPEG ({detail}).",
+  "@errJpegParseDetail": {
+    "placeholders": { "detail": { "type": "String" } }
+  },
+  "errFileTooLarge": "File too large (>2 GB). Trim the video first.",
+  "errApp1Overflow": "File metadata too large to rewrite safely.",
+  "errSefWriteFail": "Write failed. Check available storage.",
+  "errWriteCorrupt": "Write interrupted — output file is incomplete.",
+  "errPermission": "Storage or notification permission not granted.",
+  "errAlreadySamsung": "Already in Samsung format — no fix needed.",
+  "errNoMp4": "Not a Motion Photo — no video segment to inject.",
+  "errUnknown": "Processing failed. Please try again later."
+}

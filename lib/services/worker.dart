@@ -153,26 +153,31 @@ Future<void> workerEntry(SendPort toMain) async {
         TaskFinished(taskId: taskId, kind: TaskResultKind.cancelled),
       );
     } on LivebackException catch (e, st) {
+      // Merge the exception's technicalDetail (e.g., "APP1 segment too
+      // short") with a stack-trace tail so the ErrorDialog debug chip has
+      // both context and origin.
+      final merged = e.technicalDetail == null
+          ? _summarizeStack(st, e.cause)
+          : '${e.technicalDetail}\n${_summarizeStack(st, e.cause)}';
       toMain.send(
         TaskFinished(
           taskId: taskId,
           kind: TaskResultKind.failed,
           error: FixError(
             errorCode: e.errorCode,
-            message: e.message,
-            technicalDetails: _summarizeStack(st, e.cause),
+            technicalDetails: merged,
           ),
         ),
       );
     } catch (e, st) {
-      // Fallback bucket (Doc 1 §A.4 step 3).
+      // Fallback bucket (Doc 1 §A.4 step 3). Localized message is looked
+      // up in the UI via ErrorCodes.unknown.
       toMain.send(
         TaskFinished(
           taskId: taskId,
           kind: TaskResultKind.failed,
           error: FixError(
             errorCode: 'ERR_UNKNOWN',
-            message: '处理失败，请稍后重试',
             technicalDetails: '${e.runtimeType}: $e\n${_summarizeStack(st)}',
           ),
         ),

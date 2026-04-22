@@ -1,0 +1,9 @@
+arb-dir: lib/l10n
+# Template is zh because the original app copy was authored in zh-CN; English
+# values are translated FROM zh, so keeping zh as template puts ICU placeholder
+# metadata next to the canonical source strings.
+template-arb-file: app_zh.arb
+output-localization-file: app_localizations.dart
+output-class: AppL10n
+output-dir: lib/l10n/generated
+synthetic-package: false

@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n_ext.dart';
 import '../../widgets/fixed_counter.dart';
 import '../../widgets/status_chip.dart';
 import '../../widgets/theme_access.dart';
@@ -37,8 +38,8 @@ class HomePage extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.fromLTRB(22, 0, 22, 22),
               child: BigActionButton(
-                title: '选择实况图',
-                subtitle: '最多 100 张批量处理',
+                title: context.l10n.homePrimaryCta,
+                subtitle: context.l10n.homePrimaryCtaSubtitle,
                 onPressed: () =>
                     Navigator.of(context).pushNamed('/gallery'),
               ),
@@ -90,6 +91,7 @@ class _Masthead extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(28, 14, 28, 0),
       child: Align(
@@ -104,12 +106,12 @@ class _Masthead extends StatelessWidget {
               color: c.ink,
             ),
             children: [
-              const TextSpan(text: '让实况图\n'),
+              TextSpan(text: l.homeMastheadLine1),
               TextSpan(
-                text: '重新',
+                text: l.homeMastheadEmphasis,
                 style: TextStyle(color: c.inkDim),
               ),
-              const TextSpan(text: '动起来'),
+              TextSpan(text: l.homeMastheadTail),
             ],
           ),
         ),
@@ -227,7 +229,7 @@ class _LocalOfflineBlock extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.end,
       children: [
         Text(
-          'LOCAL · OFFLINE',
+          context.l10n.localOfflineLabel,
           style: TextStyle(
             fontFamily: 'JetBrainsMono',
             fontSize: 10,

@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
+import '../../l10n/l10n_ext.dart';
 import '../../services/wechat_share.dart';
 import '../../widgets/mono_text.dart';
 import '../../widgets/theme_access.dart';
@@ -30,18 +31,24 @@ class TestModePage extends StatefulWidget {
 
 class _TestModePageState extends State<TestModePage> {
   bool _running = false;
-  final List<String> _completedSteps = [];
+  // Stored as indices (0..stepCount-1) rather than translated strings so
+  // the displayed label tracks the current locale — if the user flips the
+  // language mid-run, rebuilds re-read the indices against the new
+  // l10n step-name getters.
+  final List<int> _completedStepIndices = [];
   String? _error;
   String? _outputUri;
   VoidCallback? _stepSub;
 
-  static const _allSteps = [
-    '解析 JPEG',
-    '检测 MP4 段',
-    '注入 SEF trailer',
-    '伪装 EXIF',
-    '写入输出',
-  ];
+  static const int _stepCount = 5;
+
+  List<String> _allSteps(AppL10n l) => [
+        l.testModeStepParse,
+        l.testModeStepDetectMp4,
+        l.testModeStepInjectSef,
+        l.testModeStepFakeExif,
+        l.testModeStepWriteOutput,
+      ];
 
   Future<String> _materializeSample() async {
     final data = await rootBundle.load(_kSampleAssetPath);
@@ -54,7 +61,7 @@ class _TestModePageState extends State<TestModePage> {
   Future<void> _run() async {
     setState(() {
       _running = true;
-      _completedSteps.clear();
+      _completedStepIndices.clear();
       _error = null;
       _outputUri = null;
     });
@@ -66,10 +73,10 @@ class _TestModePageState extends State<TestModePage> {
       await _materializeSample();
 
       // Simulated step animation.
-      for (var i = 0; i < _allSteps.length; i++) {
+      for (var i = 0; i < _stepCount; i++) {
         await Future.delayed(const Duration(milliseconds: 450));
         if (!mounted) return;
-        setState(() => _completedSteps.add(_allSteps[i]));
+        setState(() => _completedStepIndices.add(i));
       }
 
       setState(() => _running = false);
@@ -83,9 +90,10 @@ class _TestModePageState extends State<TestModePage> {
   }
 
   Future<void> _shareTestResult() async {
+    final l = context.l10n;
     if (_outputUri == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('尚无可分享的输出（等待真实管线接入）')),
+        SnackBar(content: Text(l.testModeShareUnavailable)),
       );
       return;
     }
@@ -94,7 +102,7 @@ class _TestModePageState extends State<TestModePage> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('分享失败: $e')),
+        SnackBar(content: Text(l.shareFailed('$e'))),
       );
     }
   }
@@ -108,7 +116,9 @@ class _TestModePageState extends State<TestModePage> {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final allDone = _completedSteps.length == _allSteps.length;
+    final l = context.l10n;
+    final steps = _allSteps(l);
+    final allDone = _completedStepIndices.length == _stepCount;
     return Scaffold(
       backgroundColor: c.bg,
       body: SafeArea(
@@ -137,17 +147,19 @@ class _TestModePageState extends State<TestModePage> {
                       ),
                       child: Text(
                         _running
-                            ? '运行中…'
-                            : (_completedSteps.isEmpty ? '运行自检' : '重新运行'),
+                            ? l.testModeRunning
+                            : (_completedStepIndices.isEmpty
+                                ? l.testModeRun
+                                : l.testModeRunAgain),
                       ),
                     ),
                     const SizedBox(height: 18),
-                    ...List.generate(_allSteps.length, (i) {
-                      final done = _completedSteps.length > i;
+                    ...List.generate(_stepCount, (i) {
+                      final done = _completedStepIndices.length > i;
                       return Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: _StepRow(
-                          label: _allSteps[i],
+                          label: steps[i],
                           done: done,
                         ),
                       );
@@ -167,12 +179,12 @@ class _TestModePageState extends State<TestModePage> {
                               borderRadius: BorderRadius.circular(12),
                             ),
                           ),
-                          child: const Row(
+                          child: Row(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              Icon(Icons.share_outlined, size: 15),
-                              SizedBox(width: 6),
-                              Text('分享测试结果到微信'),
+                              const Icon(Icons.share_outlined, size: 15),
+                              const SizedBox(width: 6),
+                              Text(l.testModeShare),
                             ],
                           ),
                         ),
@@ -214,7 +226,7 @@ class _TestModePageState extends State<TestModePage> {
           ),
           Expanded(
             child: Text(
-              '自检',
+              context.l10n.testModeTitle,
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 17,
@@ -231,6 +243,7 @@ class _TestModePageState extends State<TestModePage> {
 
   Widget _sampleCard(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -242,7 +255,7 @@ class _TestModePageState extends State<TestModePage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            '测试样本',
+            l.testModeSampleSection,
             style: TextStyle(fontSize: 13, color: c.inkDim),
           ),
           const SizedBox(height: 10),
@@ -269,7 +282,7 @@ class _TestModePageState extends State<TestModePage> {
                   ),
                   const SizedBox(height: 3),
                   MonoText(
-                    '7.44 MB · 2.8s',
+                    l.testModeSampleDuration,
                     style: TextStyle(fontSize: 11, color: c.inkFaint),
                   ),
                 ],

@@ -411,13 +411,16 @@ class TaskQueue {
         unawaited(_saveFixedCount());
         break;
       case TaskResultKind.failed:
+        // errorMessage is no longer populated from the worker (i18n
+        // refactor): UI resolves localized copy via errorCode. The field
+        // on FixTask is retained but left null — removing it was out of
+        // scope for this branch.
         n.value = task.copyWith(
           status: TaskStatus.failed,
           clearPhase: true,
           elapsedMs: elapsed,
           completedAt: DateTime.now(),
           errorCode: event.error?.errorCode ?? 'ERR_UNKNOWN',
-          errorMessage: event.error?.message ?? '处理失败，请稍后重试',
           errorTechnicalDetails: event.error?.technicalDetails,
         );
         break;

@@ -7,6 +7,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../l10n/l10n_ext.dart';
 import 'mono_text.dart';
 import 'theme_access.dart';
 
@@ -20,10 +21,11 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     final (label, color) = switch (kind) {
-      StatusChipKind.ready => ('READY', c.success),
-      StatusChipKind.syncing => ('SYNCING', c.chromaCyan),
-      StatusChipKind.error => ('ERROR', c.chromaMagenta),
+      StatusChipKind.ready => (l.statusChipReady, c.success),
+      StatusChipKind.syncing => (l.statusChipSyncing, c.chromaCyan),
+      StatusChipKind.error => (l.statusChipError, c.chromaMagenta),
     };
     return Row(
       mainAxisSize: MainAxisSize.min,

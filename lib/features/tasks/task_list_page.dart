@@ -9,7 +9,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
-import '../../core/task_phase.dart';
+import '../../l10n/l10n_ext.dart';
 import '../../models/fix_task.dart';
 import '../../services/task_queue.dart';
 import '../../widgets/dialog/confirm_dialog.dart';
@@ -33,9 +33,9 @@ class TaskListPage extends StatelessWidget {
           onPopInvokedWithResult: (didPop, _) {
             if (!didPop && progress.hasActiveTasks) {
               ScaffoldMessenger.of(ctx).showSnackBar(
-                const SnackBar(
-                  content: Text('处理中，请耐心等待'),
-                  duration: Duration(seconds: 2),
+                SnackBar(
+                  content: Text(ctx.l10n.tasksProcessingSnack),
+                  duration: const Duration(seconds: 2),
                 ),
               );
             }
@@ -66,7 +66,9 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    final title = progress.hasActiveTasks ? '处理中' : '已完成';
+    final l = context.l10n;
+    final title =
+        progress.hasActiveTasks ? l.tasksTitleProcessing : l.tasksTitleDone;
     return Padding(
       padding: const EdgeInsets.fromLTRB(6, 6, 10, 10),
       child: Row(
@@ -91,7 +93,7 @@ class _TopBar extends StatelessWidget {
             IconButton(
               onPressed: () => _confirmCancelAll(context),
               icon: Icon(Icons.more_horiz, color: c.inkDim, size: 22),
-              tooltip: '取消全部任务',
+              tooltip: l.tasksCancelAllTooltip,
             )
           else
             const SizedBox(width: 48),
@@ -101,12 +103,13 @@ class _TopBar extends StatelessWidget {
   }
 
   Future<void> _confirmCancelAll(BuildContext context) async {
+    final l = context.l10n;
     final confirmed = await showConfirmDialog(
       context,
-      title: '取消全部任务？',
-      body: '已处理完成的文件会保留，未开始的会被丢弃。',
-      cancelText: '继续处理',
-      confirmText: '确认取消',
+      title: l.tasksCancelAllTitle,
+      body: l.tasksCancelAllBody,
+      cancelText: l.tasksCancelAllKeep,
+      confirmText: l.tasksCancelAllConfirm,
       destructive: true,
     );
     if (confirmed) {
@@ -122,6 +125,7 @@ class _ProgressHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 2, 20, 10),
       child: Column(
@@ -129,7 +133,7 @@ class _ProgressHeader extends StatelessWidget {
           Row(
             children: [
               Text(
-                '${progress.processed} / ${progress.total}',
+                l.tasksProgressRatio(progress.processed, progress.total),
                 style: TextStyle(fontSize: 13, color: c.inkDim),
               ),
               const Spacer(),
@@ -173,7 +177,7 @@ class _TaskList extends StatelessWidget {
         if (list.isEmpty) {
           return Center(
             child: MonoText(
-              '暂无任务',
+              context.l10n.tasksEmpty,
               style: TextStyle(color: context.colors.inkFaint, fontSize: 12),
             ),
           );
@@ -195,6 +199,7 @@ class _BottomActionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
+    final l = context.l10n;
     if (progress.hasActiveTasks) {
       return Container(
         padding: const EdgeInsets.fromLTRB(18, 12, 18, 14),
@@ -203,7 +208,7 @@ class _BottomActionBar extends StatelessWidget {
         ),
         alignment: Alignment.center,
         child: Text(
-          '请保持应用打开直至完成',
+          l.tasksKeepAppOpen,
           style: TextStyle(fontSize: 12, color: c.inkFaint),
         ),
       );
@@ -230,7 +235,7 @@ class _BottomActionBar extends StatelessWidget {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('再来一批'),
+              child: Text(l.tasksPickMore),
             ),
           ),
           const SizedBox(width: 10),
@@ -253,7 +258,7 @@ class _BottomActionBar extends StatelessWidget {
                 children: [
                   const Icon(Icons.share_outlined, size: 15),
                   const SizedBox(width: 6),
-                  Text('分享全部 (${progress.completed})'),
+                  Text(l.tasksShareAll(progress.completed)),
                 ],
               ),
             ),
@@ -300,7 +305,7 @@ class _TaskRowState extends State<TaskRow>
     return ValueListenableBuilder<FixTask>(
       valueListenable: widget.notifier,
       builder: (ctx, task, _) {
-        final mapping = _RowState.from(task, c);
+        final mapping = _RowState.from(task, c, context.l10n);
         final isFail = task.status == TaskStatus.failed;
         final isProcessing = task.status == TaskStatus.processing;
         final showLongVideoWarn = task.videoTooLongWarning &&
@@ -402,7 +407,7 @@ class _TaskRowState extends State<TaskRow>
                                 Padding(
                                   padding: const EdgeInsets.only(top: 2),
                                   child: Text(
-                                    '视频较长，可能识别失败',
+                                    context.l10n.tasksLongVideoInline,
                                     style: TextStyle(
                                       fontSize: 11,
                                       color: c.warn,
@@ -444,11 +449,15 @@ class _TaskRowState extends State<TaskRow>
 
   Future<void> _onTap(BuildContext context, FixTask task) async {
     if (task.status == TaskStatus.failed) {
+      final l = context.l10n;
       final action = await showErrorDialog(
         context,
         errorCode: task.errorCode ?? 'ERR_UNKNOWN',
-        title: '修复失败',
-        body: task.errorMessage ?? '处理失败，请稍后重试',
+        title: l.errorDialogDefaultFailureTitle,
+        // Prefer the localized lookup via errorCode; fall back to any
+        // non-localized message the worker may have attached for
+        // diagnostic reasons.
+        body: l.errorMessageFor(task.errorCode) ,
         technicalDetails: kDebugMode ? task.errorTechnicalDetails : null,
         canRetry: true,
       );
@@ -473,52 +482,54 @@ class _RowState {
     required this.statusText,
   });
 
-  factory _RowState.from(FixTask task, LivebackColors c) {
+  factory _RowState.from(FixTask task, LivebackColors c, AppL10n l) {
     switch (task.status) {
       case TaskStatus.pending:
         return _RowState(
           color: c.inkFaint,
           waveState: WaveformState.broken,
-          statusText: '等待中',
+          statusText: l.taskStatusWaiting,
         );
       case TaskStatus.processing:
         return _RowState(
           color: c.inkDim,
           waveState: WaveformState.scanning,
-          statusText: task.phase?.zh ?? '处理中…',
+          statusText: task.phase != null
+              ? l.taskPhaseLabel(task.phase!)
+              : l.taskStatusProcessing,
         );
       case TaskStatus.completed:
         final elapsed = _formatMs(task.elapsedMs);
         return _RowState(
           color: c.accent,
           waveState: WaveformState.clean,
-          statusText: '修复完成 · $elapsed',
+          statusText: l.taskStatusCompleted(elapsed),
         );
       case TaskStatus.failed:
         return _RowState(
           color: c.danger,
           waveState: WaveformState.broken,
           statusText: task.errorCode != null
-              ? '修复失败 · ${task.errorCode}'
-              : '修复失败',
+              ? l.taskStatusFailedWithCode(task.errorCode!)
+              : l.taskStatusFailed,
         );
       case TaskStatus.cancelled:
         return _RowState(
           color: c.inkFaint,
           waveState: WaveformState.broken,
-          statusText: '已取消',
+          statusText: l.taskStatusCancelled,
         );
       case TaskStatus.skippedAlreadySamsung:
         return _RowState(
           color: c.inkFaint,
           waveState: WaveformState.clean,
-          statusText: '已是三星格式，无需修复',
+          statusText: l.taskStatusSkippedAlreadySamsung,
         );
       case TaskStatus.skippedNotMotionPhoto:
         return _RowState(
           color: c.inkFaint,
           waveState: WaveformState.broken,
-          statusText: '不是实况图，已跳过',
+          statusText: l.taskStatusSkippedNotMotionPhoto,
         );
     }
   }

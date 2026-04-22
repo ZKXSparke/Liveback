@@ -5,6 +5,7 @@
 
 import 'package:flutter/material.dart';
 
+import '../../l10n/l10n_ext.dart';
 import '../../models/fix_task.dart';
 import '../../services/task_queue.dart';
 import '../../services/wechat_share.dart';
@@ -35,7 +36,7 @@ class _ResultPageState extends State<ResultPage> {
     if (notifier == null) {
       return Scaffold(
         backgroundColor: c.bg,
-        body: const Center(child: Text('任务不存在')),
+        body: Center(child: Text(context.l10n.resultNotFound)),
       );
     }
     return Scaffold(
@@ -73,7 +74,7 @@ class _ResultPageState extends State<ResultPage> {
 
   Widget _body(BuildContext context, FixTask task) {
     final c = context.colors;
-    final config = _Config.from(task, c);
+    final config = _Config.from(task, c, context.l10n);
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(22, 4, 22, 20),
       child: Column(
@@ -195,14 +196,14 @@ class _ResultPageState extends State<ResultPage> {
           if (ok) ...[
             const SizedBox(height: 16),
             _WaveCompare(
-              label: '修复前',
+              label: context.l10n.resultWaveBefore,
               state: WaveformState.broken,
               seed: task.seed,
               color: c.inkFaint,
             ),
             const SizedBox(height: 12),
             _WaveCompare(
-              label: '修复后',
+              label: context.l10n.resultWaveAfter,
               state: WaveformState.clean,
               seed: task.seed,
               color: c.accent,
@@ -222,7 +223,7 @@ class _ResultPageState extends State<ResultPage> {
         borderRadius: BorderRadius.circular(10),
       ),
       child: MonoText(
-        '输出: Pictures/Liveback/',
+        context.l10n.resultOutputPath,
         style: TextStyle(fontSize: 12, color: c.inkDim, height: 1.5),
       ),
     );
@@ -243,7 +244,7 @@ class _ResultPageState extends State<ResultPage> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              '视频 >3s，微信可能识别为普通图片',
+              context.l10n.resultLongVideoWarn,
               style: TextStyle(fontSize: 12.5, color: c.warn),
             ),
           ),
@@ -254,6 +255,7 @@ class _ResultPageState extends State<ResultPage> {
 
   Widget _actions(BuildContext context, FixTask task) {
     final c = context.colors;
+    final l = context.l10n;
     if (task.status == TaskStatus.completed) {
       return Row(
         children: [
@@ -268,7 +270,7 @@ class _ResultPageState extends State<ResultPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Text('返回列表'),
+              child: Text(l.resultBackToList),
             ),
           ),
           const SizedBox(width: 10),
@@ -284,12 +286,12 @@ class _ResultPageState extends State<ResultPage> {
                   borderRadius: BorderRadius.circular(12),
                 ),
               ),
-              child: const Row(
+              child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.share_outlined, size: 15),
-                  SizedBox(width: 6),
-                  Text('分享到微信'),
+                  const Icon(Icons.share_outlined, size: 15),
+                  const SizedBox(width: 6),
+                  Text(l.resultShareWeChat),
                 ],
               ),
             ),
@@ -309,7 +311,7 @@ class _ResultPageState extends State<ResultPage> {
             borderRadius: BorderRadius.circular(12),
           ),
         ),
-        child: const Text('返回列表'),
+        child: Text(l.resultBackToList),
       ),
     );
   }
@@ -317,19 +319,20 @@ class _ResultPageState extends State<ResultPage> {
   Future<void> _shareSingle(BuildContext context, FixTask task) async {
     final uri = task.outputUri;
     if (uri == null) return;
+    final l = context.l10n;
     final messenger = ScaffoldMessenger.of(context);
     try {
       final result = await WeChatShare().shareFiles([uri]);
       if (!mounted) return;
       if (result == ShareResult.wechatNotInstalled) {
         messenger.showSnackBar(
-          const SnackBar(content: Text('未安装微信')),
+          SnackBar(content: Text(l.shareNoWeChat)),
         );
       }
     } catch (e) {
       if (!mounted) return;
       messenger.showSnackBar(
-        SnackBar(content: Text('分享失败: $e')),
+        SnackBar(content: Text(l.shareFailed('$e'))),
       );
     }
   }
@@ -347,49 +350,51 @@ class _Config {
     required this.subtitle,
   });
 
-  factory _Config.from(FixTask task, LivebackColors c) {
+  factory _Config.from(FixTask task, LivebackColors c, AppL10n l) {
     switch (task.status) {
       case TaskStatus.completed:
         return _Config(
           icon: Icons.check,
           color: c.accent,
-          title: '修复完成',
-          subtitle: '已生成三星兼容的 Motion Photo',
+          title: l.resultTitleCompleted,
+          subtitle: l.resultSubtitleCompleted,
         );
       case TaskStatus.failed:
         return _Config(
           icon: Icons.close,
           color: c.danger,
-          title: '修复失败',
-          subtitle: task.errorMessage ?? '处理失败，请稍后重试',
+          title: l.resultTitleFailed,
+          // Look up localized copy via errorCode, falling through to a
+          // generic "try again" message when the code is unknown.
+          subtitle: l.errorMessageFor(task.errorCode),
         );
       case TaskStatus.cancelled:
         return _Config(
           icon: Icons.block,
           color: c.inkDim,
-          title: '已取消',
-          subtitle: '此任务已被取消',
+          title: l.resultTitleCancelled,
+          subtitle: l.resultSubtitleCancelled,
         );
       case TaskStatus.skippedAlreadySamsung:
         return _Config(
           icon: Icons.info_outline,
           color: c.info,
-          title: '无需修复',
-          subtitle: '此文件已是三星 SEF 格式，可以直接发送到微信',
+          title: l.resultTitleSkippedAlreadySamsung,
+          subtitle: l.resultSubtitleSkippedAlreadySamsung,
         );
       case TaskStatus.skippedNotMotionPhoto:
         return _Config(
           icon: Icons.warning_amber_outlined,
           color: c.warn,
-          title: '不是实况图',
-          subtitle: '此文件不是实况图，没有可注入的视频段',
+          title: l.resultTitleSkippedNotMotionPhoto,
+          subtitle: l.resultSubtitleSkippedNotMotionPhoto,
         );
       case TaskStatus.pending:
       case TaskStatus.processing:
         return _Config(
           icon: Icons.hourglass_empty,
           color: c.inkDim,
-          title: '处理中',
+          title: l.resultTitleProcessing,
           subtitle: '',
         );
     }

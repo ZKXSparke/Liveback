@@ -26,10 +26,12 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:liveback/core/constants.dart';
 import 'package:liveback/core/theme.dart';
 import 'package:liveback/features/preview/preview_page.dart';
+import 'package:liveback/l10n/generated/app_localizations.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -77,6 +79,16 @@ void main() {
       MaterialApp(
         theme: LivebackTheme.light(),
         darkTheme: LivebackTheme.dark(),
+        // Pin zh so the assertions below keep their original expected
+        // strings (the test was authored pre-i18n against zh copy).
+        locale: const Locale('zh'),
+        supportedLocales: const [Locale('en'), Locale('zh')],
+        localizationsDelegates: const [
+          AppL10n.delegate,
+          GlobalMaterialLocalizations.delegate,
+          GlobalWidgetsLocalizations.delegate,
+          GlobalCupertinoLocalizations.delegate,
+        ],
         home: PreviewPage(
           args: PreviewPageArgs(
             contentUri: contentUri,
