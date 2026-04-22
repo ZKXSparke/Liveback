@@ -6,10 +6,22 @@
 // §7 — we chose Option B, Dart-side creation). postBatchComplete MUST
 // consult AppLifecycle.isForeground and no-op when the app is resumed
 // (v1.1 §3.1 F6 + review B8).
+//
+// i18n: channel display name / description and the batch-complete body
+// are localized. Because this service has no BuildContext, it resolves
+// copy against the APP's current locale (derived from the persisted
+// LocaleController) and the system fallback when no explicit choice is
+// set. Use `AppL10n.delegate.load(locale)` to materialize a localized
+// table on demand — see [_loadL10n] below.
 
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:flutter/widgets.dart' show Locale;
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 import '../core/app_lifecycle.dart';
+import '../core/locale_controller.dart';
+import '../l10n/generated/app_localizations.dart';
 
 class NotificationService {
   NotificationService({FlutterLocalNotificationsPlugin? plugin})
@@ -40,10 +52,11 @@ class NotificationService {
         .resolvePlatformSpecificImplementation<
             AndroidFlutterLocalNotificationsPlugin>();
     if (androidImpl != null) {
-      const channel = AndroidNotificationChannel(
+      final l = await _loadL10n();
+      final channel = AndroidNotificationChannel(
         channelId,
-        channelName,
-        description: 'Liveback 处理一批实况图后推送',
+        l.notificationChannelName,
+        description: l.notificationChannelDescription,
         importance: Importance.defaultImportance,
         enableVibration: true,
         playSound: true,
@@ -53,6 +66,24 @@ class NotificationService {
     }
 
     _initialized = true;
+  }
+
+  /// Picks the locale that best reflects the user's current preference:
+  ///   * LocaleController.instance.locale (non-null ⇒ explicit choice)
+  ///   * else PlatformDispatcher.instance.locale (system default)
+  ///     mapped through the same zh-else-en policy MaterialApp uses.
+  Future<AppL10n> _loadL10n() async {
+    final explicit = LocaleController.instance.locale.value;
+    final Locale target;
+    if (explicit != null) {
+      target = explicit;
+    } else {
+      final system = PlatformDispatcher.instance.locale;
+      target = system.languageCode == 'zh'
+          ? const Locale('zh')
+          : const Locale('en');
+    }
+    return AppL10n.delegate.load(target);
   }
 
   /// Returns true iff the user has granted POST_NOTIFICATIONS (Android
@@ -90,13 +121,19 @@ class NotificationService {
     if (AppLifecycle.isForeground) return;
     await init();
 
-    final body = _formatBody(success: success, failed: failed, skipped: skipped);
+    final l = await _loadL10n();
+    final body = _formatBody(
+      l,
+      success: success,
+      failed: failed,
+      skipped: skipped,
+    );
 
-    const details = NotificationDetails(
+    final details = NotificationDetails(
       android: AndroidNotificationDetails(
         channelId,
-        channelName,
-        channelDescription: 'Liveback 处理一批实况图后推送',
+        l.notificationChannelName,
+        channelDescription: l.notificationChannelDescription,
         importance: Importance.defaultImportance,
         priority: Priority.defaultPriority,
         enableVibration: true,
@@ -114,19 +151,24 @@ class NotificationService {
     );
   }
 
-  String _formatBody({
+  String _formatBody(
+    AppL10n l, {
     required int success,
     required int failed,
     required int skipped,
   }) {
-    // Brand §5: "X 张已修复，Y 张失败，Z 张跳过". Omit zero categories to
-    // keep the line short.
+    // Brand §5: join non-zero categories. Locale decides the separator
+    // via intl's Intl.message / list formatting — for MVP we join with
+    // a comma (localized punctuation; en uses ", " and zh uses "，").
     final parts = <String>[];
-    if (success > 0) parts.add('$success 张已修复');
-    if (failed > 0) parts.add('$failed 张失败');
-    if (skipped > 0) parts.add('$skipped 张跳过');
-    if (parts.isEmpty) return '批次处理完成';
-    return parts.join('，');
+    if (success > 0) parts.add(l.notificationBatchFragmentSuccess(success));
+    if (failed > 0) parts.add(l.notificationBatchFragmentFailed(failed));
+    if (skipped > 0) parts.add(l.notificationBatchFragmentSkipped(skipped));
+    if (parts.isEmpty) return l.notificationBatchDefault;
+    // Use locale-aware separator: zh uses fullwidth comma, en uses
+    // ascii comma + space.
+    final sep = l.localeName.startsWith('zh') ? '，' : ', ';
+    return parts.join(sep);
   }
 
   // Fixed notification id — we only post one batch-complete at a time.
@@ -137,5 +179,4 @@ class NotificationService {
   /// `LivebackConstants.notificationChannelId` on purpose, so this class
   /// remains `LivebackConstants`-free at import time.
   static const channelId = 'liveback.batch_complete';
-  static const channelName = '批次处理完成';
 }
