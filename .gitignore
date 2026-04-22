@@ -65,3 +65,13 @@ linux/
 # test samples — do not commit
 20260420_140350.jpg
 dji_export_photo_*.jpg
+
+# Design + requirement docs — kept local only, never pushed to GitHub
+architecture/
+analysis/
+design-v2/
+icon-proposals/
+icon-prompts/
+ARCHITECTURE_HANDOFF.md
+MotionFix 需求文档 *.md
+UI-Brand-decisions.md
