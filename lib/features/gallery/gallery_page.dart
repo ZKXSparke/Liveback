@@ -29,6 +29,7 @@ import 'package:permission_handler/permission_handler.dart';
 import '../../models/gallery_album.dart';
 import '../../models/gallery_item.dart';
 import '../../services/mediastore_channel.dart';
+import '../../services/motion_photo_probe_cache.dart';
 import '../../services/task_queue.dart';
 import '../../widgets/mono_text.dart';
 import '../../widgets/theme_access.dart';
@@ -47,6 +48,11 @@ enum _GalleryFilter {
   motionOnly,
   needsFix,
 }
+
+/// Exposes the page's default filter name so widget tests can pin the
+/// first-launch behaviour without poking private state.
+@visibleForTesting
+const String debugGalleryDefaultFilterName = 'motionOnly';
 
 /// Pure filter predicate exercised by unit tests via `debugGalleryTilePasses`.
 /// Tiles with unresolved probes (`probe == null`) always pass so that
@@ -116,8 +122,20 @@ class _GalleryPageState extends State<GalleryPage> {
   int? _selectedBucketId; // null ⇒ "all albums"
   String? _selectedBucketLabel; // cached for header render
 
-  // Motion-Photo filter chip state.
-  _GalleryFilter _filter = _GalleryFilter.all;
+  // Motion-Photo filter chip state. Default is "仅显示实况图" so first-run
+  // users land on a curated grid of Motion Photos rather than every JPEG
+  // in the album — matches the app's primary job-to-be-done (find and
+  // fix live photos). The chip bar still exposes 全部 / 待修复 as toggles.
+  _GalleryFilter _filter = _GalleryFilter.motionOnly;
+
+  // Debounce timer for probe-resolution setState batching. When eager
+  // probes fire for a freshly-loaded page, dozens of probe results can
+  // land in the same frame; we coalesce them into a single setState per
+  // 50 ms window to avoid rebuild storms. See §3b of the perf brief.
+  Timer? _probeRebuildDebounce;
+  // True if a filter-active tile result landed since the last rebuild;
+  // drives whether _flushProbeRebuild actually calls setState.
+  bool _probeRebuildDirty = false;
 
   // Gesture state machine (§11). Indices are into the CURRENTLY VISIBLE
   // list — gestures only target visible tiles; filtered-out rows are not
@@ -161,6 +179,7 @@ class _GalleryPageState extends State<GalleryPage> {
 
   @override
   void dispose() {
+    _probeRebuildDebounce?.cancel();
     _scroll.dispose();
     super.dispose();
   }
@@ -195,6 +214,12 @@ class _GalleryPageState extends State<GalleryPage> {
         _reachedEnd = next.length < _kPageSize;
         _loading = false;
       });
+      // §3b of the perf brief: fire-and-forget eager probes for every
+      // new item so the filter populates without waiting for tiles to
+      // enter the viewport. MotionPhotoProbeCache enforces an 8-way
+      // concurrency cap, so even 120 probes per page queue cleanly
+      // rather than saturating the MethodChannel.
+      _startEagerProbes(next);
       // If the filter is hiding most tiles on this page, auto-advance up
       // to _kMaxAutoLoadRounds pages before surfacing "no more" to the
       // user. Prevents the grid from looking empty when e.g. "待修复" only
@@ -212,6 +237,60 @@ class _GalleryPageState extends State<GalleryPage> {
         _loading = false;
       });
     }
+  }
+
+  /// Fire-and-forget eager probe dispatch for a freshly-loaded page.
+  /// Results feed into [_probes] through the cache; each resolution
+  /// marks the rebuild debounce dirty. File-size pre-filter and
+  /// concurrency cap are enforced by the underlying cache.
+  void _startEagerProbes(List<GalleryItem> newItems) {
+    for (final item in newItems) {
+      if (_probes.containsKey(item.id)) continue;
+      // Peek the cache first — if a tile (or a previous page) already
+      // resolved this URI, no work needed.
+      final cached = MotionPhotoProbeCache.instance.peek(item.contentUri);
+      if (cached != null) {
+        _probes[item.id] = cached;
+        _scheduleProbeRebuild();
+        continue;
+      }
+      unawaited(
+        _channel
+            .probeMotionPhoto(item.contentUri, fileSizeBytes: item.size)
+            .then((probe) {
+          if (!mounted) return;
+          final prev = _probes[item.id];
+          if (prev == probe) return;
+          _probes[item.id] = probe;
+          _scheduleProbeRebuild();
+        }).catchError((_) {
+          // Probe errors already degrade to no-badge inside the cache;
+          // nothing to do here.
+        }),
+      );
+    }
+  }
+
+  /// Marks the grid dirty and schedules a coalesced setState in the
+  /// next 50 ms window. Multiple probe resolutions in that window all
+  /// resolve into ONE rebuild, which is what keeps a page of 120
+  /// probes from triggering 120 individual setState calls.
+  void _scheduleProbeRebuild() {
+    _probeRebuildDirty = true;
+    if (_probeRebuildDebounce?.isActive ?? false) return;
+    _probeRebuildDebounce = Timer(const Duration(milliseconds: 50), () {
+      if (!mounted) return;
+      if (!_probeRebuildDirty) return;
+      _probeRebuildDirty = false;
+      setState(() {});
+      // Pull another page in if the filter is hiding most of what we
+      // have. Mirrors the post-filter-change top-up logic.
+      if (!_reachedEnd &&
+          _filter != _GalleryFilter.all &&
+          _visibleItems().length < 12) {
+        unawaited(_loadMore());
+      }
+    });
   }
 
   Future<void> _loadAlbums() async {
@@ -280,16 +359,12 @@ class _GalleryPageState extends State<GalleryPage> {
     if (!mounted) return;
     final prev = _probes[item.id];
     _probes[item.id] = p;
-    // Only rebuild when the probe meaningfully changed AND a filter is
-    // active — saves setState churn during fast scroll under the default
-    // "all" filter.
+    // Only schedule a rebuild when the probe meaningfully changed AND a
+    // filter is active — saves setState churn during fast scroll under
+    // the "all" filter. Rebuild is coalesced through the 50 ms debounce
+    // so a burst of late-arriving tile probes collapses into one frame.
     if (prev != p && _filter != _GalleryFilter.all) {
-      setState(() {});
-      // If the filter just hid this tile and the grid is now underfull,
-      // pull another page in.
-      if (!_reachedEnd && _visibleItems().length < 12) {
-        _loadMore();
-      }
+      _scheduleProbeRebuild();
     }
   }
 
@@ -1108,8 +1183,10 @@ class _ThumbnailTileState extends State<_ThumbnailTile> {
       return;
     }
     try {
-      final p = await MediaStoreChannel()
-          .probeMotionPhoto(widget.item.contentUri);
+      final p = await MediaStoreChannel().probeMotionPhoto(
+        widget.item.contentUri,
+        fileSizeBytes: widget.item.size,
+      );
       if (!mounted) return;
       setState(() {
         _probe = p;

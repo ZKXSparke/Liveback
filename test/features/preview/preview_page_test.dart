@@ -160,8 +160,14 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
       }
 
-      // Hold-hint must never show for a non-motion-photo.
-      expect(find.text('长按预览视频'), findsNothing);
+      // The round play button must never show for a non-motion-photo —
+      // the pill was removed entirely and the button is gated on
+      // isMotionPhoto.
+      expect(
+        find.byIcon(Icons.play_arrow),
+        findsNothing,
+        reason: 'play button must not surface for non-motion-photo inputs',
+      );
 
       // Long-press somewhere on the preview. kLongPressTimeout = 500 ms.
       final center = tester.getCenter(find.byType(PreviewPage));

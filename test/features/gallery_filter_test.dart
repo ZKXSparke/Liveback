@@ -52,4 +52,12 @@ void main() {
       );
     });
   });
+
+  group('gallery default filter', () {
+    test('page opens on "仅显示实况图"', () {
+      // Constant exposed via @visibleForTesting — changing it means every
+      // first-launch gallery session will pre-filter to motion photos.
+      expect(debugGalleryDefaultFilterName, 'motionOnly');
+    });
+  });
 }
