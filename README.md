@@ -32,6 +32,19 @@ Liveback rewrites those djimimo exports to look byte-identical to native Samsung
 
 No cloud, no accounts, no network. Everything happens on your phone, offline.
 
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/home.png"              width="200" alt="Home screen"     />
+  <img src="docs/screenshots/gallery.png"           width="200" alt="Gallery with Motion Photo detection" />
+  <img src="docs/screenshots/gallery-selected.png"  width="200" alt="Drag-select batch" />
+</p>
+<p align="center">
+  <img src="docs/screenshots/preview.png"           width="200" alt="Preview with auto-play" />
+  <img src="docs/screenshots/tasks.png"             width="200" alt="Batch processing complete" />
+  <img src="docs/screenshots/settings.png"          width="200" alt="Settings with locale + theme pickers" />
+</p>
+
 ## Install
 
 Grab the signed APK from the [latest release](https://github.com/ZKXSparke/Liveback/releases/latest):
