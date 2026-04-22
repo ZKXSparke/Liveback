@@ -1,20 +1,18 @@
-<div align="center">
+<p align="center">
+  <img src="docs/social-preview.png" alt="Liveback — Make Motion Photos move again" width="100%" />
+</p>
 
-<img src="assets/branding/app-icon.png" alt="Liveback" width="120" />
+<p align="center">
+  <a href="https://github.com/ZKXSparke/Liveback/releases/latest"><img src="https://img.shields.io/github/v/release/ZKXSparke/Liveback?label=release" alt="Release" /></a>
+  <img src="https://img.shields.io/badge/Android-10%2B%20(API%2029)-green" alt="Android" />
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue" alt="License" /></a>
+</p>
 
-# Liveback
-
-**Repair Samsung Motion Photo metadata so WeChat accepts djimimo exports.**
-
-*Local · Offline · Android only*
-
-[![Release](https://img.shields.io/github/v/release/ZKXSparke/Liveback?label=release)](https://github.com/ZKXSparke/Liveback/releases/latest)
-[![Android](https://img.shields.io/badge/Android-10%2B%20(API%2029)-green)](https://github.com/ZKXSparke/Liveback/releases/latest)
-[![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
-
-[Download APK](https://github.com/ZKXSparke/Liveback/releases/latest) · [中文](#中文)
-
-</div>
+<p align="center">
+  <a href="https://github.com/ZKXSparke/Liveback/releases/latest"><b>Download APK</b></a>
+  &nbsp;·&nbsp;
+  <a href="#中文">中文</a>
+</p>
 
 ---
 
