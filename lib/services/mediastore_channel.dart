@@ -10,8 +10,6 @@
 // (QUERY_FAILED / INSERT_FAILED / NO_SPACE / PERMISSION_DENIED / ...)
 // get translated into LivebackException subclasses (Doc 1 §A.3 tail).
 
-import 'dart:collection';
-
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 
@@ -20,8 +18,25 @@ import '../exceptions/liveback_exceptions.dart';
 import '../models/gallery_album.dart';
 import '../models/gallery_item.dart';
 import 'motion_photo_probe.dart' show MotionPhotoProbe;
+import 'motion_photo_probe_cache.dart';
 
 export 'motion_photo_probe.dart' show MotionPhotoProbe;
+
+/// File-size floor (bytes) below which [MediaStoreChannel.probeMotionPhoto]
+/// refuses to dispatch a real probe and instead records a synthetic
+/// {isMotionPhoto:false, isSamsungNative:false} in the cache.
+///
+/// Heuristic justification (see §3c of kk/autoplay-filter-probe-perf
+/// brief): Samsung S23 Motion Photos run 4–10 MB, djimimo 5–25 MB, camera
+/// stills 1.5–4 MB, screenshots + downloaded images <500 KB. Shaving 500 KB
+/// off the probe workload eliminates most of the long tail on 2000-photo
+/// albums.
+///
+/// Known false-negative risk: if a Motion Photo somehow ships with
+/// < 500 KB total bytes, it'll be filtered out. No such file has been
+/// observed in the wild across the fixture corpus, so the risk is
+/// accepted. Tune this constant (or set to 0) if that assumption breaks.
+const int kProbeSizeFloorBytes = 500 * 1024;
 
 class MediaStoreChannel {
   MediaStoreChannel({MethodChannel? channel})
@@ -72,19 +87,47 @@ class MediaStoreChannel {
     }
   }
 
-  /// Cheap Motion-Photo classification for a single [contentUri]. Runs on
-  /// Kotlin's IO dispatcher in a tail-probe + head-probe sequence (see
-  /// `MediaStorePlugin.probeMotionPhoto`). Results are memoised per URI in
-  /// an in-memory LRU so scrolling back through the gallery never
-  /// re-probes.
+  /// Cheap Motion-Photo classification for a single [contentUri]. Dispatches
+  /// through [MotionPhotoProbeCache] which bounds concurrency (8 parallel
+  /// probe calls) and dedups per-URI in-flight Futures, so thousands of
+  /// tiles asking in parallel collapse to a sane serial workload over the
+  /// single-threaded MethodChannel.
   ///
-  /// On PERMISSION_DENIED propagates [PermissionDeniedException]. All
-  /// other Kotlin failures are caught inside the plugin and surface as
-  /// `MotionPhotoProbe(isMotionPhoto:false, isSamsungNative:false)` so the
-  /// gallery tile renders without a badge rather than throwing.
-  Future<MotionPhotoProbe> probeMotionPhoto(String contentUri) async {
-    final cached = _probeCache._get(contentUri);
-    if (cached != null) return cached;
+  /// Results are memoised in the cache's LRU so scrolling back never
+  /// re-probes. On PERMISSION_DENIED propagates
+  /// [PermissionDeniedException]. All other Kotlin failures degrade to
+  /// `MotionPhotoProbe(false, false)` per Doc 1 §A.6.
+  ///
+  /// [fileSizeBytes], when supplied, enables the file-size pre-filter
+  /// (see [kProbeSizeFloorBytes]): bytes below the floor short-circuit
+  /// to a synthetic {false, false} without a channel round-trip.
+  Future<MotionPhotoProbe> probeMotionPhoto(
+    String contentUri, {
+    int? fileSizeBytes,
+  }) {
+    if (fileSizeBytes != null && fileSizeBytes < kProbeSizeFloorBytes) {
+      const synthetic = MotionPhotoProbe(
+        isMotionPhoto: false,
+        isSamsungNative: false,
+      );
+      MotionPhotoProbeCache.instance.putSynthetic(contentUri, synthetic);
+      return Future.value(synthetic);
+    }
+    return MotionPhotoProbeCache.instance.fetch(contentUri, _channelProbe);
+  }
+
+  /// Raw channel probe, used as the dispatch target by the cache. Kept
+  /// private so callers always go through [probeMotionPhoto] (which gives
+  /// them dedup, bounded concurrency, and the size pre-filter).
+  ///
+  /// Error handling contract with [MotionPhotoProbeCache]:
+  ///   * PERMISSION_DENIED → throw PermissionDeniedException. Cache
+  ///     surfaces it to the caller and does NOT memoise.
+  ///   * Any other PlatformException → re-thrown as-is. Cache catches it,
+  ///     returns a degraded {false,false} probe to the caller, and does
+  ///     NOT memoise (transient errors must be retriable).
+  ///   * Happy path → returns the parsed probe. Cache memoises.
+  Future<MotionPhotoProbe> _channelProbe(String contentUri) async {
     try {
       final map = await _channel.invokeMapMethod<String, dynamic>(
         'probeMotionPhoto',
@@ -92,21 +135,16 @@ class MediaStoreChannel {
       );
       final isMotionPhoto = (map?['isMotionPhoto'] as bool?) ?? false;
       final isSamsungNative = (map?['isSamsungNative'] as bool?) ?? false;
-      final probe = MotionPhotoProbe(
+      return MotionPhotoProbe(
         isMotionPhoto: isMotionPhoto,
         isSamsungNative: isSamsungNative,
       );
-      _probeCache._put(contentUri, probe);
-      return probe;
     } on PlatformException catch (e) {
       if (e.code == 'PERMISSION_DENIED') throw _mapChannelError(e);
-      // Any other error collapses to a no-badge result and is NOT cached —
-      // the failure might be transient (e.g. URI being rewritten), so a
-      // re-probe later is fine.
-      return const MotionPhotoProbe(
-        isMotionPhoto: false,
-        isSamsungNative: false,
-      );
+      // Re-throw so the cache treats this as a transient failure
+      // (degrades to no-badge but does NOT memoise). Retrying later is
+      // the right call — the underlying URI may be being rewritten.
+      rethrow;
     }
   }
 
@@ -309,45 +347,15 @@ class MediaStoreChannel {
   }
 }
 
-/// Module-private LRU keyed by contentUri. Capped at 500 entries — typical
-/// gallery scroll sessions touch ~300 tiles, so this fits comfortably.
-const int _kProbeCacheCap = 500;
-
-class _ProbeLruCache {
-  final LinkedHashMap<String, MotionPhotoProbe> _map =
-      LinkedHashMap<String, MotionPhotoProbe>();
-
-  MotionPhotoProbe? _get(String key) {
-    final v = _map.remove(key);
-    if (v == null) return null;
-    _map[key] = v; // re-insert at tail (MRU position)
-    return v;
-  }
-
-  void _put(String key, MotionPhotoProbe probe) {
-    if (_map.containsKey(key)) {
-      _map.remove(key);
-    } else if (_map.length >= _kProbeCacheCap) {
-      // Evict oldest (head of insertion order).
-      _map.remove(_map.keys.first);
-    }
-    _map[key] = probe;
-  }
-
-  /// Visible for testing — drops all entries.
-  void _clear() => _map.clear();
-
-  /// Visible for testing — current size.
-  int get _size => _map.length;
-}
-
-final _ProbeLruCache _probeCache = _ProbeLruCache();
-
-/// Visible for testing: clears the module-private probe cache so each test
-/// runs from a clean slate.
+/// Visible for testing: clears the shared MotionPhotoProbeCache so each
+/// test runs from a clean slate. Retained at this path for back-compat
+/// with existing suites that imported it before the cache was promoted
+/// out of this file.
 @visibleForTesting
-void debugClearMotionPhotoProbeCache() => _probeCache._clear();
+void debugClearMotionPhotoProbeCache() =>
+    MotionPhotoProbeCache.instance.clear();
 
-/// Visible for testing: current cache size.
+/// Visible for testing: current cache size. Delegates to the shared
+/// MotionPhotoProbeCache.
 @visibleForTesting
-int debugMotionPhotoProbeCacheSize() => _probeCache._size;
+int debugMotionPhotoProbeCacheSize() => MotionPhotoProbeCache.instance.size;
